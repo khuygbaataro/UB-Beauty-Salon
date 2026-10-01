@@ -21,7 +21,7 @@ import { runReminders } from "./reminders/reminders.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-02-5"; // deploy-ийг ялгах тэмдэг
+const VERSION = "2026-10-02-6"; // deploy-ийг ялгах тэмдэг
 
 export const app = express();
 app.use(express.json());
@@ -59,9 +59,8 @@ app.post("/webhook", async (req, res) => {
   const body = req.body;
   if (body.object !== "page") return res.sendStatus(404);
 
-  // FB-д хурдан 200 буцаана (дараа нь мессежээ боловсруулна)
-  res.sendStatus(200);
-
+  // ⚠️ Vercel serverless дээр хариу буцаасны дараа функц царцдаг тул
+  //    мессежээ ЭХЛЭЭД боловсруулж (AI дуудлага + хариу илгээх), ДАРАА нь 200 буцаана.
   for (const entry of body.entry || []) {
     for (const event of entry.messaging || []) {
       try {
@@ -71,6 +70,8 @@ app.post("/webhook", async (req, res) => {
       }
     }
   }
+
+  res.sendStatus(200);
 });
 
 async function handleMessagingEvent(event) {
@@ -104,25 +105,26 @@ async function handleMessagingEvent(event) {
 
 // ───────── Telegram webhook (Admin AI) ─────────
 app.post("/admin/telegram", async (req, res) => {
-  res.sendStatus(200); // Telegram-д хурдан хариулна
-
   const update = req.body;
   const msg = update.message || update.edited_message;
   const chatId = msg?.chat?.id;
   const text = msg?.text;
-  if (!chatId || !text) return;
+  if (!chatId || !text) return res.sendStatus(200);
 
+  // ⚠️ Vercel дээр хариу буцаахаас ӨМНӨ боловсруулна (функц царцахаас сэргийлж).
   try {
     if (!isAllowedAdmin(chatId)) {
       await sendTelegram(chatId, "Уучлаарай, танд энэ ботыг ашиглах эрх алга.");
-      return;
+    } else {
+      const reply = await handleAdminMessage({ adminId: chatId, text });
+      await sendTelegram(chatId, reply);
     }
-    const reply = await handleAdminMessage({ adminId: chatId, text });
-    await sendTelegram(chatId, reply);
   } catch (err) {
     console.error("[admin/telegram] алдаа:", err);
     await sendTelegram(chatId, "Алдаа гарлаа. Дахин оролдоно уу.");
   }
+
+  res.sendStatus(200);
 });
 
 async function sendTelegram(chatId, text) {
