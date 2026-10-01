@@ -1,0 +1,18 @@
+{
+  "name": "ub-beauty-salon-chatbot",
+  "version": "0.1.0",
+  "description": "UB Beauty Salon — Facebook Messenger chatbot (customer AI + admin AI) on Node.js/Express, deployed on Vercel",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --watch local-dev.js",
+    "start": "node --env-file-if-exists=.env local-dev.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "express": "^4.21.2"
+  }
+}
