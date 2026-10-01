@@ -26,8 +26,17 @@ app.use(express.json());
 
 // ───────── Health ─────────
 app.get("/", (_req, res) => {
-  res.json({ ok: true, service: config.salonName, store: repository.kind });
+  let store = "unknown";
+  try {
+    store = repository.kind;
+  } catch (err) {
+    console.error("[health] repository.kind алдаа:", err);
+  }
+  res.json({ ok: true, service: config.salonName, store });
 });
+
+// favicon хүсэлтийг чимээгүй өнгөрөөх (log дээр 404 гарахгүй)
+app.get(["/favicon.ico", "/favicon.png"], (_req, res) => res.sendStatus(204));
 
 // ───────── Facebook webhook баталгаажуулалт ─────────
 app.get("/webhook", (req, res) => {
@@ -137,4 +146,14 @@ app.get("/cron/reminders", async (req, res) => {
   const result = await runReminders();
   console.log("[cron] reminders:", result);
   res.json({ ok: true, ...result });
+});
+
+// ───────── Global error handler ─────────
+// Ямар ч route дотор шидэгдсэн алдааг барьж, FUNCTION_INVOCATION_FAILED-ийн
+// оронд цэвэр JSON алдаа буцаана (ингэснээр жинхэнэ алдаа харагдана).
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  console.error("[error]", err?.stack || err);
+  if (res.headersSent) return;
+  res.status(500).json({ ok: false, error: String(err?.message || err) });
 });
