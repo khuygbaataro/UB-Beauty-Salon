@@ -21,19 +21,24 @@ import { runReminders } from "./reminders/reminders.js";
 
 warnMissingConfig();
 
+const VERSION = "2026-10-02-3"; // deploy-ийг ялгах тэмдэг
+
 export const app = express();
 app.use(express.json());
 
 // ───────── Health ─────────
-app.get("/", (_req, res) => {
+function healthPayload() {
   let store = "unknown";
   try {
     store = repository.kind;
   } catch (err) {
     console.error("[health] repository.kind алдаа:", err);
   }
-  res.json({ ok: true, service: config.salonName, store });
-});
+  return { ok: true, service: config.salonName, version: VERSION, store };
+}
+
+app.get("/", (_req, res) => res.json(healthPayload()));
+app.get("/status", (_req, res) => res.json(healthPayload()));
 
 // favicon хүсэлтийг чимээгүй өнгөрөөх (log дээр 404 гарахгүй)
 app.get(["/favicon.ico", "/favicon.png"], (_req, res) => res.sendStatus(204));
