@@ -21,6 +21,7 @@ import { createBooking, bookingSummary } from "../booking/booking.js";
 import { cancelBooking, cancellationMessage } from "../booking/cancellation.js";
 import { suggestSlots } from "../booking/schedule.js";
 import { presentOneService } from "./present.js";
+import { escalateQuestion, searchKnowledge } from "../escalation.js";
 
 const conversations = new Map(); // psid -> Anthropic.MessageParam[]  (TODO: DB рүү зөөх)
 const referredServices = new Map(); // psid -> serviceId (аль контентоос орж ирсэн)
@@ -88,6 +89,28 @@ const tools = [
     },
   },
   {
+    name: "search_knowledge",
+    description:
+      "Өмнө ажилтны өгсөн хариултуудын мэдлэгийн сангаас хайх. Үйлчилгээний сан дээр байхгүй зүйлийг асуувал ЭХЛЭЭД үүгээр хай.",
+    input_schema: {
+      type: "object",
+      properties: { query: { type: "string", description: "Хайх асуулт/түлхүүр үг" } },
+      required: ["query"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "escalate_to_staff",
+    description:
+      "Үйлчилгээний сан болон мэдлэгийн санд ҮНЭХЭЭР байхгүй асуултыг ажилтанд дамжуулах. Ажилтан хариулахад үйлчлүүлэгч рүү буцаж очно. Асуултыг тодорхой, бүтэн бич.",
+    input_schema: {
+      type: "object",
+      properties: { question: { type: "string", description: "Үйлчлүүлэгчийн асуулт (бүтэн)" } },
+      required: ["question"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "cancel_booking",
     description: "Захиалгыг цуцлах. Утасны дугаараар сүүлийн идэвхтэй захиалгыг олж цуцална.",
     input_schema: {
@@ -141,9 +164,11 @@ async function buildSystemPrompt(psid) {
     `📌 ЧУХАЛ: Үйлчилгээний ДЭЛГЭРЭНГҮЙ (жишээ: багцад багтсан бүх үйлчилгээ, онцлог, үр дүн) нь ` +
     `list_services-ийн 'benefits' ба 'description' талбарт БАЙГАА. Эдгээр нь бодит өгөгдөл — тэндээс ` +
     `БҮРЭН хариул. "Санд байхгүй" гэж бүү хэл, эхлээд list_services-ийг шалга.\n` +
-    `Зөвхөн ҮНЭХЭЭР өгөгдөлд байхгүй зүйлийг асуувал зохихгүйгээр "Уучлаарай, үүнийг баталгаатай ` +
-    `хэлж чадахгүй нь 🌸" гэж хэлээд ХОЛБОО БАРИХ/БАЙРШЛЫГ санал болго: ${contactLine} ` +
-    `Үнэ тодорхойгүй (null) үйлчилгээний үнийг БҮҮ зохио — ажилтнаас эсвэл дээрх холбоогоор лавлахыг хэл.\n\n` +
+    `Өгөгдөлд шууд байхгүй зүйл асуувал ДАРААЛЛААР ажилла: (1) ЭХЛЭЭД search_knowledge tool-ээр ` +
+    `хай. (2) Тэндээс олдвол түүгээр хариул. (3) Үнэхээр олдохгүй бол escalate_to_staff tool-оор ` +
+    `асуултыг ажилтанд дамжуул, дараа нь үйлчлүүлэгчид "Таны асуултыг ажилтанд дамжууллаа, удахгүй ` +
+    `хариу өгнө 🌸" гэж эелдэг хэл. Хүсвэл шууд холбогдож болохыг нэм: ${contactLine} ` +
+    `Баримтыг БҮҮ зохио, үнэ тодорхойгүй (null) үйлчилгээний үнийг БҮҮ таа.\n\n` +
     `ҮЙЛЧИЛГЭЭ ТАНИЛЦУУЛАХ ДҮРЭМ (чандлан баримтал):\n` +
     `• Үйлчилгээг present_service tool-ээр ЗУРАГТ КАРТААР танилцуул. НЭГ үйлчилгээ = НЭГ карт. ` +
     `Хэд хэдэн үйлчилгээг нэг текст мессежид БҮҮ жагсаа.\n` +
@@ -225,6 +250,18 @@ async function runTool(name, input, ctx) {
       const latest = active.sort((a, b) => new Date(b.startsAt) - new Date(a.startsAt))[0];
       const result = await cancelBooking(latest.id);
       return { ok: true, message: cancellationMessage(result) };
+    }
+    case "search_knowledge": {
+      const results = await searchKnowledge(input.query);
+      return { found: results.length, results };
+    }
+    case "escalate_to_staff": {
+      const q = await escalateQuestion({ psid: ctx.psid, question: input.question });
+      return {
+        ok: true,
+        questionId: q.id,
+        note: "Асуултыг ажилтанд дамжууллаа. Үйлчлүүлэгчид удахгүй хариулна гэдгийг эелдэг хэл.",
+      };
     }
     default:
       return { ok: false, error: `Үл мэдэгдэх tool: ${name}` };

@@ -22,6 +22,8 @@ export function createJsonStore() {
   // seed-ээс хуулж авна (seed-ийг гэмтээхгүйн тулд)
   const services = clone(seedServices);
   const bookings = [];
+  const questions = []; // escalation: ажилтанд дамжуулсан асуултууд
+  const knowledge = []; // мэдлэгийн сан: хариулагдсан Q&A
 
   return {
     kind: "json-memory",
@@ -88,6 +90,50 @@ export function createJsonStore() {
       if (i === -1) return null;
       bookings[i] = { ...bookings[i], ...patch, id };
       return clone(bookings[i]);
+    },
+
+    // ───────── Escalation асуултууд (questions) ─────────
+    async createQuestion(data) {
+      const q = {
+        id: genId("q"),
+        status: "open", // open | answered
+        createdAt: new Date().toISOString(),
+        answer: null,
+        answeredAt: null,
+        answeredBy: null,
+        ...data,
+      };
+      questions.push(q);
+      return clone(q);
+    },
+
+    async getQuestion(id) {
+      const q = questions.find((x) => x.id === id);
+      return q ? clone(q) : null;
+    },
+
+    async listQuestions(filter = {}) {
+      let result = questions;
+      if (filter.status) result = result.filter((q) => q.status === filter.status);
+      return result.map(clone);
+    },
+
+    async updateQuestion(id, patch) {
+      const i = questions.findIndex((x) => x.id === id);
+      if (i === -1) return null;
+      questions[i] = { ...questions[i], ...patch, id };
+      return clone(questions[i]);
+    },
+
+    // ───────── Мэдлэгийн сан (knowledge Q&A) ─────────
+    async addKnowledge(data) {
+      const k = { id: genId("kb"), createdAt: new Date().toISOString(), ...data };
+      knowledge.push(k);
+      return clone(k);
+    },
+
+    async listKnowledge() {
+      return knowledge.map(clone);
     },
   };
 }

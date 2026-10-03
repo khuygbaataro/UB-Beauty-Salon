@@ -66,6 +66,16 @@ export const repository = {
   listBookings: (filter) => getStore().listBookings(filter),
   updateBooking: (id, patch) => getStore().updateBooking(id, patch),
 
+  // Escalation questions
+  createQuestion: (data) => getStore().createQuestion(data),
+  getQuestion: (id) => getStore().getQuestion(id),
+  listQuestions: (filter) => getStore().listQuestions(filter),
+  updateQuestion: (id, patch) => getStore().updateQuestion(id, patch),
+
+  // Knowledge base
+  addKnowledge: (data) => getStore().addKnowledge(data),
+  listKnowledge: () => getStore().listKnowledge(),
+
   // Диагностик
   get kind() {
     return getStore().kind;

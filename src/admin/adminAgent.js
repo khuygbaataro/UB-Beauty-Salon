@@ -15,6 +15,7 @@ import { config } from "../config.js";
 import { repository } from "../db/repository.js";
 import { createMessage, extractText, extractToolUses } from "../ai/anthropic.js";
 import { createBooking, confirmBooking } from "../booking/booking.js";
+import { answerQuestion } from "../escalation.js";
 
 const adminConversations = new Map(); // adminId -> messages[]  (TODO: DB)
 const MAX_HISTORY = 20;
@@ -76,6 +77,25 @@ const tools = [
     },
   },
   {
+    name: "list_open_questions",
+    description: "Үйлчлүүлэгчдээс ирсэн, хариулаагүй (open) асуултуудыг жагсаах.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "answer_question",
+    description:
+      "Үйлчлүүлэгчийн асуултад хариулах. Хариултыг тухайн үйлчлүүлэгч рүү чатаар буцаана, мэдлэгийн санд хадгална.",
+    input_schema: {
+      type: "object",
+      properties: {
+        questionId: { type: "string", description: "Асуултын id (q_...)" },
+        answer: { type: "string", description: "Ажилтны хариулт" },
+      },
+      required: ["questionId", "answer"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "list_bookings",
     description: "Захиалгуудыг харах. status (pending|confirmed|reminded|completed|cancelled) эсвэл phone-оор шүүж болно.",
     input_schema: {
@@ -101,6 +121,9 @@ function buildSystemPrompt() {
     `• Өөрчлөлт хийхээс өмнө ойлгомжгүй зүйлийг тодруул (жишээ: аль үйлчилгээ, яг ямар үнэ).\n` +
     `• Үнэ/урьдчилгааг төгрөгөөр тоогоор оруул.\n` +
     `• Захиалга бүртгэхэд утас, үйлчилгээ (list_services-ийн id), огноо, цаг заавал хэрэгтэй.\n` +
+    `• Үйлчлүүлэгчийн асуулт (open questions) ирвэл list_open_questions-ээр хараад answer_question-аар ` +
+    `хариул. Хариу автоматаар үйлчлүүлэгч рүү очиж, мэдлэгийн санд хадгалагдана. (Telegram дээр ` +
+    `асуултын мэдэгдэл рүү шууд Reply хийж бичсэн ч болно.)\n` +
     `• Үйлдэл бүрийн дараа юу өөрчлөгдсөнийг товч баталгаажуулж хэл.`
   );
 }
@@ -142,6 +165,13 @@ async function runTool(name, input) {
         time: b.time,
         status: b.status,
       }));
+    }
+    case "list_open_questions": {
+      const qs = await repository.listQuestions({ status: "open" });
+      return qs.map((q) => ({ id: q.id, question: q.question, createdAt: q.createdAt }));
+    }
+    case "answer_question": {
+      return answerQuestion(input.questionId, input.answer, input.answeredBy);
     }
     default:
       return { ok: false, error: `Үл мэдэгдэх tool: ${name}` };

@@ -17,12 +17,14 @@ import { resolveReferral, buildGreeting } from "./customer/greeting.js";
 import { presentMainServices, presentOneService } from "./customer/present.js";
 import { handleCustomerMessage, seedGreeting, setReferredService, isNewConversation } from "./customer/customerAgent.js";
 import { handleAdminMessage, isAllowedAdmin } from "./admin/adminAgent.js";
+import { sendTelegram } from "./admin/telegramSend.js";
+import { answerQuestion, parseQid } from "./escalation.js";
 import { sendText } from "./messenger/sendApi.js";
 import { runReminders } from "./reminders/reminders.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-03-13"; // deploy-ийг ялгах тэмдэг
+const VERSION = "2026-10-03-14"; // deploy-ийг ялгах тэмдэг
 
 export const app = express();
 app.use(express.json());
@@ -143,8 +145,21 @@ app.post("/admin/telegram", async (req, res) => {
     if (!isAllowedAdmin(chatId)) {
       await sendTelegram(chatId, "Уучлаарай, танд энэ ботыг ашиглах эрх алга.");
     } else {
-      const reply = await handleAdminMessage({ adminId: chatId, text });
-      await sendTelegram(chatId, reply);
+      // Асуултын мэдэгдэл рүү Reply хийсэн бол → тухайн асуултад шууд хариулна
+      const qid = parseQid(msg.reply_to_message?.text || "");
+      if (qid) {
+        const result = await answerQuestion(qid, text, chatId);
+        await sendTelegram(
+          chatId,
+          result.ok
+            ? "✅ Хариу үйлчлүүлэгч рүү илгээгдэж, мэдлэгийн санд хадгалагдлаа."
+            : `⚠️ ${result.error}`,
+        );
+      } else {
+        // Энгийн админ чат → Admin AI (мэдээллийн сан удирдах)
+        const reply = await handleAdminMessage({ adminId: chatId, text });
+        await sendTelegram(chatId, reply);
+      }
     }
   } catch (err) {
     console.error("[admin/telegram] алдаа:", err);
@@ -153,22 +168,6 @@ app.post("/admin/telegram", async (req, res) => {
 
   res.sendStatus(200);
 });
-
-async function sendTelegram(chatId, text) {
-  if (!config.telegramBotToken) {
-    console.warn("[telegram] TELEGRAM_BOT_TOKEN алга — илгээгдсэнгүй:", text);
-    return;
-  }
-  try {
-    await fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text }),
-    });
-  } catch (err) {
-    console.error("[telegram] илгээх алдаа:", err);
-  }
-}
 
 // ───────── Cron: сануулга илгээх ─────────
 app.get("/cron/reminders", async (req, res) => {
