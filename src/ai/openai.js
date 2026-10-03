@@ -35,13 +35,18 @@ export function toOpenAITools(tools) {
  * @param {number} [p.maxTokens]
  * @param {string} [p.model]
  */
-export async function createChatCompletion({ messages, tools, maxTokens = 1500, model }) {
+export async function createChatCompletion({ messages, tools, maxTokens = 1500, model, reasoningEffort }) {
   const req = {
     model: model || config.customerModel,
     messages,
     // GPT-5 үеийн моделиуд max_completion_tokens хэрэглэдэг (max_tokens биш).
     max_completion_tokens: maxTokens,
   };
+  // Reasoning моделийн хувьд "minimal" горимд function tools дэмжигддэггүй тул
+  // tool-той нийцдэг түвшинг (default "low") тодорхой зааж өгнө.
+  const effort = reasoningEffort || config.customerReasoningEffort;
+  if (effort) req.reasoning_effort = effort;
+
   if (tools && tools.length) {
     req.tools = toOpenAITools(tools);
     req.tool_choice = "auto";
