@@ -14,6 +14,7 @@ import express from "express";
 import { config, warnMissingConfig } from "./config.js";
 import { repository } from "./db/repository.js";
 import { resolveReferral, buildGreeting } from "./customer/greeting.js";
+import { presentMainServices, presentOneService } from "./customer/present.js";
 import { handleCustomerMessage, seedGreeting, setReferredService } from "./customer/customerAgent.js";
 import { handleAdminMessage, isAllowedAdmin } from "./admin/adminAgent.js";
 import { sendText } from "./messenger/sendApi.js";
@@ -21,7 +22,7 @@ import { runReminders } from "./reminders/reminders.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-03-8"; // deploy-ийг ялгах тэмдэг
+const VERSION = "2026-10-03-9"; // deploy-ийг ялгах тэмдэг
 
 export const app = express();
 app.use(express.json());
@@ -86,13 +87,25 @@ async function handleMessagingEvent(event) {
     event.message?.referral?.ref ||
     null;
 
-  // Шинэ орж ирсэн (postback/referral) эсвэл "get_started" → контентоос хамаарсан мэндчилгээ
+  // Шинэ орж ирсэн (postback/referral) → мэндчилгээ
   if (ref || event.postback) {
     const { service } = await resolveReferral(ref);
-    if (service) setReferredService(psid, service.id); // аль контентоос ирснийг цээжил
-    const greeting = buildGreeting(service);
-    seedGreeting(psid, greeting);
-    await sendText(psid, greeting);
+    if (service) {
+      // Контентоос ирсэн → тэр үйлчилгээг зурагт картаар + дэлгэрэнгүй танилцуулга
+      setReferredService(psid, service.id);
+      await presentOneService(psid, service);
+      const greeting = buildGreeting(service);
+      await sendText(psid, greeting);
+      seedGreeting(psid, `[«${service.name}» үйлчилгээг зурагтайгаар танилцууллаа]`);
+    } else {
+      // Контент тодорхойгүй / Get Started → эхний 3 үйлчилгээг тус бүр картаар
+      const names = await presentMainServices(psid);
+      seedGreeting(
+        psid,
+        `[Үндсэн ${names.length} үйлчилгээг зурагтайгаар танилцууллаа: ${names.join(", ")}. ` +
+          `Үлдсэн үйлчилгээг хэрэглэгч сонирхвол present_service tool-ээр танилцуулна.]`,
+      );
+    }
     // Хэрэв зэрэг текст мессеж ирээгүй бол энд дуусна
     if (!event.message?.text) return;
   }

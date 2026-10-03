@@ -20,6 +20,7 @@ import { priceSummary } from "./greeting.js";
 import { createBooking, bookingSummary } from "../booking/booking.js";
 import { cancelBooking, cancellationMessage } from "../booking/cancellation.js";
 import { suggestSlots } from "../booking/schedule.js";
+import { presentOneService } from "./present.js";
 
 const conversations = new Map(); // psid -> Anthropic.MessageParam[]  (TODO: DB рүү зөөх)
 const referredServices = new Map(); // psid -> serviceId (аль контентоос орж ирсэн)
@@ -36,6 +37,19 @@ const tools = [
     name: "list_services",
     description: "Салоны бүх идэвхтэй үйлчилгээний жагсаалт, үнэ, тайлбарыг авах.",
     input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "present_service",
+    description:
+      "Тодорхой нэг үйлчилгээг ЗУРАГТ КАРТААР үйлчлүүлэгчид илгээх (1 үйлчилгээ = 1 карт). Хэрэглэгч тухайн үйлчилгээг сонирхсон эсвэл түүнийг үзүүлэх шаардлагатай үед дууд.",
+    input_schema: {
+      type: "object",
+      properties: {
+        serviceId: { type: "string", description: "Үйлчилгээний id (list_services-ээс)" },
+      },
+      required: ["serviceId"],
+      additionalProperties: false,
+    },
   },
   {
     name: "check_availability",
@@ -113,10 +127,14 @@ async function buildSystemPrompt(psid) {
     `өөрөө зохиож, таамаглаж, "магадгүй/байх шиг байна" гэж хэлж БОЛОХГҮЙ. Сан дээр байхгүй, эсвэл ` +
     `эргэлзээтэй зүйлийг асуувал "Уучлаарай, үүнийг баталгаатай хэлж чадахгүй нь — манай ажилтан ` +
     `тодруулж өгнө 🌸" гэж эелдэг хэл. Үнэ тодорхойгүй (null) үйлчилгээний үнийг БҮҮ зохио.\n\n` +
-    `ҮЙЛЧИЛГЭЭ ТАНИЛЦУУЛАХ ДАРААЛАЛ (чандлан баримтал):\n` +
-    `• Хэрэв хэрэглэгч тодорхой үйлчилгээний контентоос орж ирсэн бол ТЭР үйлчилгээг эхэлж ` +
-    `дэлгэрэнгүй танилцуул, дараа нь үлдсэнийг доорх үндсэн дарааллаар товч дурд.\n` +
-    `• Эс бол бүх үйлчилгээг доорх үндсэн дарааллаар танилцуул.\n\n` +
+    `ҮЙЛЧИЛГЭЭ ТАНИЛЦУУЛАХ ДҮРЭМ (чандлан баримтал):\n` +
+    `• Үйлчилгээг present_service tool-ээр ЗУРАГТ КАРТААР танилцуул. НЭГ үйлчилгээ = НЭГ карт. ` +
+    `Хэд хэдэн үйлчилгээг нэг текст мессежид БҮҮ жагсаа.\n` +
+    `• Контентоос ирээгүй хэрэглэгчид үндсэн эхний 3 үйлчилгээг систем аль хэдийн зурагтайгаар ` +
+    `үзүүлсэн — тэдгээрийг дахин БҮҮ танилцуул. Хэрэглэгч үлдсэн үйлчилгээ (лазер, сормуус) эсвэл ` +
+    `өөр үйлчилгээ сонирхвол тухайн үйлчилгээг present_service-ээр үзүүл.\n` +
+    `• Хэрэглэгч тодорхой үйлчилгээ асуувал эхлээд present_service-ээр үзүүлээд, дараа нь дэлгэрэнгүйг ` +
+    `(зөвхөн сан дээр байгаагаар) товч тайлбарла.\n\n` +
     `АЖИЛЛАХ ЦАГ: Салон өдөр бүр ${config.salonOpenHour}:00–${config.salonCloseHour}:00 ажиллана.\n` +
     `⚠️ Үйлчилгээ бүрийн үргэлжлэх хугацаа ялгаатай бөгөөд энд өгөгдөөгүй. Тиймээс үйлчилгээ ` +
     `хэр удах талаар ТОО/ХУГАЦАА зохиож хэлж БОЛОХГҮЙ. Асуувал "Үйлчилгээнээс хамаарч ялгаатай, ` +
@@ -151,6 +169,12 @@ async function runTool(name, input, ctx) {
         variants: s.variants,
         addons: s.addons,
       }));
+    }
+    case "present_service": {
+      const svc = await repository.getService(input.serviceId);
+      if (!svc) return { ok: false, error: "Үйлчилгээ олдсонгүй." };
+      await presentOneService(ctx.psid, svc);
+      return { ok: true, presented: svc.name };
     }
     case "check_availability": {
       const { ordered, morning, later } = await suggestSlots(input.date);

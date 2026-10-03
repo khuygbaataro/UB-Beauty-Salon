@@ -40,6 +40,62 @@ export async function sendText(psid, text, messagingType = "RESPONSE") {
   }
 }
 
+/**
+ * Нэг үйлчилгээг зурагт карт (generic template)-аар илгээх = 1 chat.
+ * Зураг (service.image) байхгүй бол текстээр (нэр + товч) илгээнэ.
+ */
+export async function sendServiceCard(psid, service) {
+  const subtitle = (service.tagline || service.description || "").slice(0, 80);
+
+  // Зураггүй бол текст fallback
+  if (!service.image) {
+    return sendText(psid, `🌸 ${service.name}\n${service.tagline || subtitle}`);
+  }
+
+  if (!config.fbPageAccessToken) {
+    console.warn("[messenger] FB_PAGE_ACCESS_TOKEN алга — карт илгээгдсэнгүй:", service.name);
+    return { ok: false, skipped: true };
+  }
+
+  const body = {
+    messaging_type: "RESPONSE",
+    recipient: { id: psid },
+    message: {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "generic",
+          elements: [
+            {
+              title: service.name,
+              subtitle,
+              image_url: service.image,
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  try {
+    const res = await fetch(`${GRAPH_URL}?access_token=${config.fbPageAccessToken}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[messenger] Карт илгээх алдаа:", res.status, errText);
+      // зураг алдаатай бол текстээр нөхөж илгээе
+      return sendText(psid, `🌸 ${service.name}\n${service.tagline || subtitle}`);
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error("[messenger] Карт сүлжээний алдаа:", err);
+    return { ok: false, error: String(err) };
+  }
+}
+
 /** "Бичиж байна…" индикатор асаах/унтраах. */
 export async function sendTypingOn(psid) {
   if (!config.fbPageAccessToken) return;

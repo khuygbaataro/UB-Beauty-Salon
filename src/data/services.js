@@ -24,6 +24,8 @@ export const seedServices = [
     name: "GREEN PEEL",
     subtitle: "S28 GREEN SPICULE PEELING",
     category: "peeling",
+    image: null, // зураг URL (https://...) — дараа нэмнэ
+    tagline: "Байгалийн бичил зүүт найрлагатай арьс шинэчлэх арчилгаа 🌿",
     price: null,
     prepayment: null,
     variants: [],
@@ -46,6 +48,8 @@ export const seedServices = [
     name: "La Vie — Өргөх чангалах",
     subtitle: "La Vie lifting",
     category: "lifting",
+    image: null, // зураг URL (https://...) — дараа нэмнэ
+    tagline: "Арьс өргөж чангалах — залуужуулах үйлчилгээ ✨",
     price: null,
     prepayment: null,
     variants: [],
@@ -62,6 +66,8 @@ export const seedServices = [
     name: "Хүчирхэг багц (эрэгтэйчүүдэд)",
     subtitle: "Хар/цагаан батга цэвэрлэх + цайруулах, 16 үйлчилгээ",
     category: "package",
+    image: null, // зураг URL (https://...) — дараа нэмнэ
+    tagline: "Эрэгтэйчүүдэд: 16 үйлчилгээ багтсан багц — 60,000₮",
     price: 60000,
     prepayment: null,
     variants: [],
@@ -114,6 +120,8 @@ export const seedServices = [
     name: "Илүүдэл үс арилгах лазер",
     subtitle: "Soprano Titanium 2026 (IPL)",
     category: "laser",
+    image: null, // зураг URL (https://...) — дараа нэмнэ
+    tagline: "Soprano Titanium — илүүдэл үс арилгах лазер (өвдөлтгүй)",
     price: null, // хэсэг бүрийн үнэ variants дотор
     prepayment: null,
     variants: [
@@ -142,6 +150,8 @@ export const seedServices = [
     name: "Сормуус суулгалт",
     subtitle: "Бүх төрлийн сормуус суулгалт",
     category: "lashes",
+    image: null, // зураг URL (https://...) — дараа нэмнэ
+    tagline: "Бүх төрлийн сормуус суулгалт — 68,000₮",
     price: 68000,
     prepayment: null,
     variants: [],
