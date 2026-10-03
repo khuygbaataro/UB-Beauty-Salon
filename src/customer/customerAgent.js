@@ -23,18 +23,16 @@ import { suggestSlots } from "../booking/schedule.js";
 import { presentOneService } from "./present.js";
 import { escalateQuestion, searchKnowledge } from "../escalation.js";
 
-const conversations = new Map(); // psid -> Anthropic.MessageParam[]  (TODO: DB рүү зөөх)
-const referredServices = new Map(); // psid -> serviceId (аль контентоос орж ирсэн)
 const MAX_HISTORY = 20;
 
 /** Хэрэглэгч аль үйлчилгээний контентоос орж ирснийг тэмдэглэх. */
-export function setReferredService(psid, serviceId) {
-  if (psid && serviceId) referredServices.set(psid, serviceId);
+export async function setReferredService(psid, serviceId) {
+  if (psid && serviceId) await repository.setReferred(psid, serviceId);
 }
 
 /** Энэ хэрэглэгчтэй анх удаа харилцаж байна уу (ярианы түүх хоосон эсэх). */
-export function isNewConversation(psid) {
-  const h = conversations.get(psid);
+export async function isNewConversation(psid) {
+  const h = await repository.getConversation(psid);
   return !h || h.length === 0;
 }
 
@@ -137,7 +135,7 @@ async function buildSystemPrompt(psid) {
     .join("\n");
 
   // Хэрэглэгч аль контентоос орж ирсэн бэ
-  const referredId = psid ? referredServices.get(psid) : null;
+  const referredId = psid ? await repository.getReferred(psid) : null;
   const referred = referredId ? services.find((s) => s.id === referredId) : null;
   const referredNote = referred
     ? `\n\n⭐ ЭНЭ ХЭРЭГЛЭГЧ «${referred.name}» үйлчилгээний контентоос орж ирсэн. ` +
@@ -284,7 +282,7 @@ function trimHistory(history) {
 }
 
 export async function handleCustomerMessage({ psid, text }) {
-  const history = conversations.get(psid) || [];
+  const history = await repository.getConversation(psid);
   history.push({ role: "user", content: text });
 
   const system = await buildSystemPrompt(psid);
@@ -331,13 +329,13 @@ export async function handleCustomerMessage({ psid, text }) {
     }
   }
 
-  conversations.set(psid, trimHistory(history));
+  await repository.setConversation(psid, trimHistory(history));
   return reply || "Уучлаарай, дахин оролдоно уу.";
 }
 
 /** Шинэ хэрэглэгчийн ярианы түүхийг урьдчилсан мэндчилгээгээр эхлүүлэх. */
-export function seedGreeting(psid, greetingText) {
-  const history = conversations.get(psid) || [];
+export async function seedGreeting(psid, greetingText) {
+  const history = await repository.getConversation(psid);
   history.push({ role: "assistant", content: greetingText });
-  conversations.set(psid, trimHistory(history));
+  await repository.setConversation(psid, trimHistory(history));
 }

@@ -24,6 +24,8 @@ export function createJsonStore() {
   const bookings = [];
   const questions = []; // escalation: ажилтанд дамжуулсан асуултууд
   const knowledge = []; // мэдлэгийн сан: хариулагдсан Q&A
+  const conversations = new Map(); // psid -> messages[]
+  const referred = new Map(); // psid -> serviceId
 
   return {
     kind: "json-memory",
@@ -134,6 +136,20 @@ export function createJsonStore() {
 
     async listKnowledge() {
       return knowledge.map(clone);
+    },
+
+    // ───────── Ярианы түүх / referred (хэрэглэгч тус бүр) ─────────
+    async getConversation(psid) {
+      return clone(conversations.get(psid) || []);
+    },
+    async setConversation(psid, arr) {
+      conversations.set(psid, clone(arr));
+    },
+    async getReferred(psid) {
+      return referred.get(psid) || null;
+    },
+    async setReferred(psid, serviceId) {
+      if (psid && serviceId) referred.set(psid, serviceId);
     },
   };
 }

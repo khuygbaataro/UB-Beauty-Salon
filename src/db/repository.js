@@ -22,13 +22,21 @@
 // ─────────────────────────────────────────────────────────────
 
 import { createJsonStore } from "./jsonStore.js";
+import { createRedisStore } from "./redisStore.js";
+import { config } from "../config.js";
 
 let store = null;
 
 function getStore() {
   if (!store) {
-    // TODO(production): энд createPostgresStore()-оор солино.
-    store = createJsonStore();
+    // Redis тохируулагдсан бол түүнийг, эс бол in-memory (dev)-ийг хэрэглэнэ.
+    if (config.redisUrl && config.redisToken) {
+      store = createRedisStore();
+      console.log("[db] Redis store идэвхжлээ.");
+    } else {
+      store = createJsonStore();
+      console.warn("[db] Redis тохируулаагүй — in-memory store (өгөгдөл хадгалагдахгүй).");
+    }
   }
   return store;
 }
@@ -75,6 +83,12 @@ export const repository = {
   // Knowledge base
   addKnowledge: (data) => getStore().addKnowledge(data),
   listKnowledge: () => getStore().listKnowledge(),
+
+  // Conversations / referred (хэрэглэгч тус бүр)
+  getConversation: (psid) => getStore().getConversation(psid),
+  setConversation: (psid, arr) => getStore().setConversation(psid, arr),
+  getReferred: (psid) => getStore().getReferred(psid),
+  setReferred: (psid, serviceId) => getStore().setReferred(psid, serviceId),
 
   // Диагностик
   get kind() {

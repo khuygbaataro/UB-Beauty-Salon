@@ -24,7 +24,7 @@ import { runReminders } from "./reminders/reminders.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-03-14"; // deploy-ийг ялгах тэмдэг
+const VERSION = "2026-10-03-15"; // deploy-ийг ялгах тэмдэг
 
 export const app = express();
 app.use(express.json());
@@ -94,15 +94,15 @@ async function handleMessagingEvent(event) {
     const { service } = await resolveReferral(ref);
     if (service) {
       // Контентоос ирсэн → тэр үйлчилгээг зурагт картаар + дэлгэрэнгүй танилцуулга
-      setReferredService(psid, service.id);
+      await setReferredService(psid, service.id);
       await presentOneService(psid, service);
       const greeting = buildGreeting(service);
       await sendText(psid, greeting);
-      seedGreeting(psid, `[«${service.name}» үйлчилгээг зурагтайгаар танилцууллаа]`);
+      await seedGreeting(psid, `[«${service.name}» үйлчилгээг зурагтайгаар танилцууллаа]`);
     } else {
       // Контент тодорхойгүй / Get Started → эхний 3 үйлчилгээг тус бүр картаар
       const names = await presentMainServices(psid);
-      seedGreeting(
+      await seedGreeting(
         psid,
         `[Үндсэн ${names.length} үйлчилгээг зурагтайгаар танилцууллаа: ${names.join(", ")}. ` +
           `Үлдсэн үйлчилгээг хэрэглэгч сонирхвол present_service tool-ээр танилцуулна.]`,
@@ -116,9 +116,9 @@ async function handleMessagingEvent(event) {
   if (event.message?.text) {
     // Контентоос ирээгүй + анхны холбоо → Get Started дарах шаардлагагүйгээр
     // эхний 3 үйлчилгээг шууд санал болгоно (ямар үйлчилгээ сонирхож буйг асуунгаа).
-    if (!ref && !event.postback && isNewConversation(psid)) {
+    if (!ref && !event.postback && (await isNewConversation(psid))) {
       const names = await presentMainServices(psid);
-      seedGreeting(
+      await seedGreeting(
         psid,
         `[Анх холбогдлоо. Үндсэн ${names.length} үйлчилгээг зурагтайгаар санал болгож, юу сонирхож ` +
           `буйг асуулаа: ${names.join(", ")}. Хэрэглэгчийн дараагийн хариуг хүлээнэ. Үлдсэн ` +

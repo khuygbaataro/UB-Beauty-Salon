@@ -7,6 +7,10 @@ export const config = {
   aiModel: process.env.AI_MODEL || "claude-opus-5", // нийтлэг Claude fallback
   adminModel: process.env.ADMIN_MODEL || process.env.AI_MODEL || "claude-opus-5",
 
+  // --- Redis хадгалалт (Upstash / Vercel KV) ---
+  redisUrl: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || "",
+  redisToken: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || "",
+
   // OpenAI (Customer AI-д хэрэглэнэ)
   openaiApiKey: process.env.OPENAI_API_KEY || "",
   customerModel: process.env.CUSTOMER_MODEL || "gpt-5.6-luna",
