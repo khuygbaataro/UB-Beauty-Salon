@@ -48,8 +48,10 @@ export const config = {
   // --- Цагийн бүс ---
   timezone: process.env.TZ || "Asia/Ulaanbaatar",
 
-  // Байгууллагын нэр (мессежид хэрэглэнэ)
+  // Байгууллагын мэдээлэл (мессежид хэрэглэнэ)
   salonName: "UB Beauty Salon",
+  salonPhone: process.env.SALON_PHONE || "", // холбоо барих утас
+  salonLocation: process.env.SALON_LOCATION || "", // байршил/хаяг
 };
 
 // Хөгжүүлэлтийн үед дутуу тохиргоог анхааруулах (production дээр алдаа заахгүй, зөвхөн log).
