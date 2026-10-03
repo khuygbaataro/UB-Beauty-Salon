@@ -10,8 +10,9 @@ export const config = {
   // OpenAI (Customer AI-д хэрэглэнэ)
   openaiApiKey: process.env.OPENAI_API_KEY || "",
   customerModel: process.env.CUSTOMER_MODEL || "gpt-5.6-luna",
-  // Reasoning түвшин (minimal горимд function tools дэмжигддэггүй тул "low").
-  customerReasoningEffort: process.env.CUSTOMER_REASONING_EFFORT || "low",
+  // chat/completions дээр function tools хэрэглэхэд reasoning_effort="none" байх ёстой
+  // (gpt-5.6-luna: tools + reasoning нь зөвхөн /v1/responses дээр дэмжигддэг).
+  customerReasoningEffort: process.env.CUSTOMER_REASONING_EFFORT || "none",
 
   // --- Facebook Messenger (үйлчлүүлэгчийн AI) ---
   fbVerifyToken: process.env.FB_VERIFY_TOKEN || "",
