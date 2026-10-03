@@ -50,8 +50,9 @@ export const config = {
 
   // Байгууллагын мэдээлэл (мессежид хэрэглэнэ)
   salonName: "UB Beauty Salon",
-  salonPhone: process.env.SALON_PHONE || "", // холбоо барих утас
-  salonLocation: process.env.SALON_LOCATION || "", // байршил/хаяг
+  salonPhone: process.env.SALON_PHONE || "7777-6062", // холбоо барих утас
+  salonLocation:
+    process.env.SALON_LOCATION || "Улаанбаатар дэлгүүрийн зүүн талын 37-р байр", // байршил/хаяг
 };
 
 // Хөгжүүлэлтийн үед дутуу тохиргоог анхааруулах (production дээр алдаа заахгүй, зөвхөн log).
