@@ -15,14 +15,14 @@ import { config, warnMissingConfig } from "./config.js";
 import { repository } from "./db/repository.js";
 import { resolveReferral, buildGreeting } from "./customer/greeting.js";
 import { presentMainServices, presentOneService } from "./customer/present.js";
-import { handleCustomerMessage, seedGreeting, setReferredService } from "./customer/customerAgent.js";
+import { handleCustomerMessage, seedGreeting, setReferredService, isNewConversation } from "./customer/customerAgent.js";
 import { handleAdminMessage, isAllowedAdmin } from "./admin/adminAgent.js";
 import { sendText } from "./messenger/sendApi.js";
 import { runReminders } from "./reminders/reminders.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-03-9"; // deploy-ийг ялгах тэмдэг
+const VERSION = "2026-10-03-10"; // deploy-ийг ялгах тэмдэг
 
 export const app = express();
 app.use(express.json());
@@ -110,8 +110,21 @@ async function handleMessagingEvent(event) {
     if (!event.message?.text) return;
   }
 
-  // 2) Энгийн текст мессеж → AI-д боловсруулуулна
+  // 2) Энгийн текст мессеж
   if (event.message?.text) {
+    // Контентоос ирээгүй + анхны холбоо → Get Started дарах шаардлагагүйгээр
+    // эхний 3 үйлчилгээг шууд санал болгоно (ямар үйлчилгээ сонирхож буйг асуунгаа).
+    if (!ref && !event.postback && isNewConversation(psid)) {
+      const names = await presentMainServices(psid);
+      seedGreeting(
+        psid,
+        `[Анх холбогдлоо. Үндсэн ${names.length} үйлчилгээг зурагтайгаар санал болгож, юу сонирхож ` +
+          `буйг асуулаа: ${names.join(", ")}. Хэрэглэгчийн дараагийн хариуг хүлээнэ. Үлдсэн ` +
+          `үйлчилгээг (лазер, сормуус) сонирхвол present_service-ээр үзүүлнэ.]`,
+      );
+      return; // анхны мэндчилгээ — AI-г дараагийн мессежээс эхлүүлнэ
+    }
+
     const reply = await handleCustomerMessage({ psid, text: event.message.text });
     await sendText(psid, reply);
   }

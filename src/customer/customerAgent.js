@@ -31,6 +31,12 @@ export function setReferredService(psid, serviceId) {
   if (psid && serviceId) referredServices.set(psid, serviceId);
 }
 
+/** Энэ хэрэглэгчтэй анх удаа харилцаж байна уу (ярианы түүх хоосон эсэх). */
+export function isNewConversation(psid) {
+  const h = conversations.get(psid);
+  return !h || h.length === 0;
+}
+
 // ───────── AI tool-ууд ─────────
 const tools = [
   {
