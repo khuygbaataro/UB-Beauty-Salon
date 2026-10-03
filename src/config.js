@@ -2,9 +2,14 @@
 
 export const config = {
   // --- AI ---
+  // Anthropic (Admin AI-д хэрэглэнэ)
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
-  // Анхдагчаар claude-opus-5. Хямд болгох бол AI_MODEL-аар claude-sonnet-5 / claude-haiku-4-5 болгоно.
-  aiModel: process.env.AI_MODEL || "claude-opus-5",
+  aiModel: process.env.AI_MODEL || "claude-opus-5", // нийтлэг Claude fallback
+  adminModel: process.env.ADMIN_MODEL || process.env.AI_MODEL || "claude-opus-5",
+
+  // OpenAI (Customer AI-д хэрэглэнэ)
+  openaiApiKey: process.env.OPENAI_API_KEY || "",
+  customerModel: process.env.CUSTOMER_MODEL || "gpt-5.6-luna",
 
   // --- Facebook Messenger (үйлчлүүлэгчийн AI) ---
   fbVerifyToken: process.env.FB_VERIFY_TOKEN || "",

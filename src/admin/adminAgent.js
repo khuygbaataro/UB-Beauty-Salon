@@ -160,7 +160,7 @@ export async function handleAdminMessage({ adminId, text }) {
   let reply = "";
 
   for (let i = 0; i < 6; i++) {
-    const message = await createMessage({ system, messages: history, tools, maxTokens: 1500 });
+    const message = await createMessage({ system, messages: history, tools, maxTokens: 1500, model: config.adminModel });
     history.push({ role: "assistant", content: message.content });
 
     const toolUses = extractToolUses(message);

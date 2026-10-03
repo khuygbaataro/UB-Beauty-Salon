@@ -15,7 +15,7 @@
 
 import { config } from "../config.js";
 import { repository } from "../db/repository.js";
-import { createMessage, extractText, extractToolUses } from "../ai/anthropic.js";
+import { createChatCompletion } from "../ai/openai.js";
 import { priceSummary } from "./greeting.js";
 import { createBooking, bookingSummary } from "../booking/booking.js";
 import { cancelBooking, cancellationMessage } from "../booking/cancellation.js";
@@ -185,6 +185,14 @@ async function runTool(name, input, ctx) {
  * @param {string} p.text — хэрэглэгчийн мессеж
  * @returns {Promise<string>} хариу текст
  */
+/** Түүхийг хэмжээнд барих + эхэнд орфан "tool" мессеж үлдвэл цэвэрлэх. */
+function trimHistory(history) {
+  let h = history.slice(-MAX_HISTORY);
+  // OpenAI: "tool" мессеж нь tool_calls-тай assistant мессежийг заавал дагана.
+  while (h.length && h[0].role === "tool") h = h.slice(1);
+  return h;
+}
+
 export async function handleCustomerMessage({ psid, text }) {
   const history = conversations.get(psid) || [];
   history.push({ role: "user", content: text });
@@ -192,37 +200,48 @@ export async function handleCustomerMessage({ psid, text }) {
   const system = await buildSystemPrompt(psid);
   const ctx = { psid };
 
-  // Tool-use loop (хамгийн ихдээ 5 эргэлт)
+  // Tool-calling loop (хамгийн ихдээ 5 эргэлт)
   let reply = "";
   for (let i = 0; i < 5; i++) {
-    const message = await createMessage({ system, messages: history, tools, maxTokens: 1500 });
-    history.push({ role: "assistant", content: message.content });
+    const messages = [{ role: "system", content: system }, ...history];
+    const completion = await createChatCompletion({
+      messages,
+      tools,
+      maxTokens: 1500,
+      model: config.customerModel,
+    });
+    const msg = completion.choices?.[0]?.message;
+    if (!msg) break;
 
-    const toolUses = extractToolUses(message);
-    if (message.stop_reason !== "tool_use" || !toolUses.length) {
-      reply = extractText(message);
+    // assistant мессежийг түүхэд нэмэх (tool_calls агуулж болно)
+    const assistantMsg = { role: "assistant", content: msg.content ?? "" };
+    if (msg.tool_calls?.length) assistantMsg.tool_calls = msg.tool_calls;
+    history.push(assistantMsg);
+
+    if (!msg.tool_calls?.length) {
+      reply = msg.content || "";
       break;
     }
 
-    const results = [];
-    for (const tu of toolUses) {
+    // tool дуудлага бүрийг гүйцэтгэж, хариуг нэмэх
+    for (const call of msg.tool_calls) {
+      let args = {};
+      try {
+        args = JSON.parse(call.function?.arguments || "{}");
+      } catch {
+        /* буруу JSON — хоосон аргументтэй үргэлжилнэ */
+      }
       let output;
       try {
-        output = await runTool(tu.name, tu.input, ctx);
+        output = await runTool(call.function?.name, args, ctx);
       } catch (err) {
         output = { ok: false, error: String(err.message || err) };
       }
-      results.push({
-        type: "tool_result",
-        tool_use_id: tu.id,
-        content: JSON.stringify(output),
-      });
+      history.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) });
     }
-    history.push({ role: "user", content: results });
   }
 
-  // Түүхийг хэмжээнд барих
-  conversations.set(psid, history.slice(-MAX_HISTORY));
+  conversations.set(psid, trimHistory(history));
   return reply || "Уучлаарай, дахин оролдоно уу.";
 }
 
@@ -230,5 +249,5 @@ export async function handleCustomerMessage({ psid, text }) {
 export function seedGreeting(psid, greetingText) {
   const history = conversations.get(psid) || [];
   history.push({ role: "assistant", content: greetingText });
-  conversations.set(psid, history.slice(-MAX_HISTORY));
+  conversations.set(psid, trimHistory(history));
 }

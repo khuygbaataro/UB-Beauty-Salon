@@ -24,9 +24,9 @@ function getClient() {
  * @param {number} [opts.maxTokens]   — default 2048 (чат хариу богино байдаг)
  * @returns {Promise<import("@anthropic-ai/sdk").Anthropic.Message>}
  */
-export async function createMessage({ system, messages, tools, maxTokens = 2048 }) {
+export async function createMessage({ system, messages, tools, maxTokens = 2048, model }) {
   const req = {
-    model: config.aiModel,
+    model: model || config.aiModel,
     max_tokens: maxTokens,
     thinking: { type: "adaptive" },
     messages,
