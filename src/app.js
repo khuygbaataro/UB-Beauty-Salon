@@ -14,14 +14,14 @@ import express from "express";
 import { config, warnMissingConfig } from "./config.js";
 import { repository } from "./db/repository.js";
 import { resolveReferral, buildGreeting } from "./customer/greeting.js";
-import { handleCustomerMessage, seedGreeting } from "./customer/customerAgent.js";
+import { handleCustomerMessage, seedGreeting, setReferredService } from "./customer/customerAgent.js";
 import { handleAdminMessage, isAllowedAdmin } from "./admin/adminAgent.js";
 import { sendText } from "./messenger/sendApi.js";
 import { runReminders } from "./reminders/reminders.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-02-6"; // deploy-ийг ялгах тэмдэг
+const VERSION = "2026-10-03-3"; // deploy-ийг ялгах тэмдэг
 
 export const app = express();
 app.use(express.json());
@@ -89,6 +89,7 @@ async function handleMessagingEvent(event) {
   // Шинэ орж ирсэн (postback/referral) эсвэл "get_started" → контентоос хамаарсан мэндчилгээ
   if (ref || event.postback) {
     const { service } = await resolveReferral(ref);
+    if (service) setReferredService(psid, service.id); // аль контентоос ирснийг цээжил
     const greeting = buildGreeting(service);
     seedGreeting(psid, greeting);
     await sendText(psid, greeting);

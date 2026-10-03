@@ -19,10 +19,16 @@ import { createMessage, extractText, extractToolUses } from "../ai/anthropic.js"
 import { priceSummary } from "./greeting.js";
 import { createBooking, bookingSummary } from "../booking/booking.js";
 import { cancelBooking, cancellationMessage } from "../booking/cancellation.js";
-import { getPaymentProvider } from "../payment/index.js";
+import { suggestSlots } from "../booking/schedule.js";
 
 const conversations = new Map(); // psid -> Anthropic.MessageParam[]  (TODO: DB рүү зөөх)
+const referredServices = new Map(); // psid -> serviceId (аль контентоос орж ирсэн)
 const MAX_HISTORY = 20;
+
+/** Хэрэглэгч аль үйлчилгээний контентоос орж ирснийг тэмдэглэх. */
+export function setReferredService(psid, serviceId) {
+  if (psid && serviceId) referredServices.set(psid, serviceId);
+}
 
 // ───────── AI tool-ууд ─────────
 const tools = [
@@ -30,6 +36,19 @@ const tools = [
     name: "list_services",
     description: "Салоны бүх идэвхтэй үйлчилгээний жагсаалт, үнэ, тайлбарыг авах.",
     input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "check_availability",
+    description:
+      "Тодорхой өдрийн сул цагуудыг авах. Эхэнд өглөөний (10:00–13:00) сул цаг, дараа нь үлдсэн сул цаг эрэмбэлэгдэж ирнэ. Цаг санал болгохоосоо өмнө ЗААВАЛ энэ tool-ээр сул цагийг шалга.",
+    input_schema: {
+      type: "object",
+      properties: {
+        date: { type: "string", description: "Огноо YYYY-MM-DD хэлбэрээр" },
+      },
+      required: ["date"],
+      additionalProperties: false,
+    },
   },
   {
     name: "create_booking",
@@ -63,27 +82,53 @@ const tools = [
 ];
 
 // ───────── Системийн промт ─────────
-async function buildSystemPrompt() {
+async function buildSystemPrompt(psid) {
   const services = await repository.listServices({ activeOnly: true });
+
+  // Үндсэн дараалал (seed-ийн дараалал): GREEN PEEL → La Vie → Хүчирхэг багц → Лазер → Сормуус
   const catalog = services
-    .map((s) => {
+    .map((s, i) => {
       const price = priceSummary(s).replace(/\n/g, " ");
-      return `- [${s.id}] ${s.name}: ${s.description} (${price})`;
+      return `${i + 1}. [${s.id}] ${s.name}: ${s.description} (${price})`;
     })
     .join("\n");
 
+  // Хэрэглэгч аль контентоос орж ирсэн бэ
+  const referredId = psid ? referredServices.get(psid) : null;
+  const referred = referredId ? services.find((s) => s.id === referredId) : null;
+  const referredNote = referred
+    ? `\n\n⭐ ЭНЭ ХЭРЭГЛЭГЧ «${referred.name}» үйлчилгээний контентоос орж ирсэн. ` +
+      `Үйлчилгээ танилцуулахдаа ЭХЛЭЭД «${referred.name}»-г дэлгэрэнгүй, дотно танилцуулаад, ` +
+      `дараа нь үлдсэн үйлчилгээг доорх үндсэн дарааллаар товч дурдаарай.`
+    : `\n\n(Хэрэглэгч тодорхой контентоос ирээгүй — үйлчилгээг доорх үндсэн дарааллаар танилцуул.)`;
+
   return (
-    `Чи бол ${config.salonName} гоо сайхны салоны найрсаг туслах AI. Зөвхөн монгол хэлээр, ` +
-    `эелдэг, товч, дулаан өнгөөр харилц. Emoji дунд зэрэг хэрэглэ.\n\n` +
+    `Чи бол ${config.salonName} гоо сайхны салоны дотно, халуун дулаан, бага зэрэг гоёмсог ` +
+    `өнгө аястай туслах AI. Зөвхөн монгол хэлээр харилц. Найрсаг, халамжтай, цэвэрхэн өнгөөр ярь — ` +
+    `хэт албан биш, дотно. ЭНГИЙН, ойлгомжтой, өдөр тутмын үг сонголт ашигла — хэт хүнд, уран яруу, ` +
+    `номын маягийн үг (жишээ нь «морилсон», «толилуулах», «эрхэмлэн», «угтах») БҮҮ хэрэглэ. ` +
+    `Богино, цэвэрхэн өгүүлбэр. Emoji-г цөөхөн, гоёмсгоор (жишээ: 🌸 ✨ 💫) хэрэглэ.\n\n` +
+    `ҮЙЛЧИЛГЭЭ ТАНИЛЦУУЛАХ ДАРААЛАЛ (чандлан баримтал):\n` +
+    `• Хэрэв хэрэглэгч тодорхой үйлчилгээний контентоос орж ирсэн бол ТЭР үйлчилгээг эхэлж ` +
+    `дэлгэрэнгүй танилцуул, дараа нь үлдсэнийг доорх үндсэн дарааллаар товч дурд.\n` +
+    `• Эс бол бүх үйлчилгээг доорх үндсэн дарааллаар танилцуул.\n\n` +
+    `АЖИЛЛАХ ЦАГ: Салон өдөр бүр ${config.salonOpenHour}:00–${config.salonCloseHour}:00 ажиллана. ` +
+    `Нэг үйлчилгээ ойролцоогоор 30 минут–1 цаг.\n\n` +
     `Үүрэг:\n` +
-    `1) Үйлчилгээний талаар доорх мэдээллийн сан дээр ҮНДЭСЛЭН тайлбарла. Мэдээлэлгүй зүйлийг зохиож болохгүй — ` +
-    `"манай ажилтан тодруулж өгнө" гэж хэл.\n` +
-    `2) Цаг захиалахдаа ЗААВАЛ эдгээрийг тодруул: утасны дугаар, аль үйлчилгээ (шаардлагатай бол хувилбар), огноо, цаг. ` +
-    `Бүгд тодорхой болсон үед л create_booking tool-ийг дууд.\n` +
-    `3) Захиалга үүссэний дараа урьдчилгаа төлбөрийн заавар болон гүйлгээний утгыг (цаг, өдөр, утас) хэлнэ.\n` +
-    `4) Цуцлах хүсэлт ирвэл cancel_booking tool-ийг дууд. Цагаас ${config.cancelRefundHours}+ цагийн өмнө цуцалбал ` +
-    `урьдчилгаа буцаана гэдгийг тайлбарла.\n\n` +
-    `Үйлчилгээний сан:\n${catalog}`
+    `1) Үйлчилгээний талаар доорх мэдээллийн сан дээр ҮНДЭСЛЭН тайлбарла. Мэдээлэлгүй зүйлийг ` +
+    `зохиож болохгүй — "манай ажилтан тодруулж өгнө" гэж эелдэг хэл.\n` +
+    `2) Цаг захиалахдаа эхлээд утас, үйлчилгээ (шаардвал хувилбар), хүссэн ӨДРИЙГ тодруул. ` +
+    `Дараа нь check_availability tool-ээр тэр өдрийн сул цагийг шалга.\n` +
+    `3) ЦАГ САНАЛ БОЛГОХ ДҮРЭМ: эхлээд ӨГЛӨӨНИЙ (10:00–13:00) сул цагийг санал болго. ` +
+    `Хэрэв тэр өдөр өглөөний сул цаг байхгүй бол л үлдсэн сул цагийг санал болго. ` +
+    `Хэрэглэгч цаг сонгосны дараа л create_booking tool-ийг дууд.\n` +
+    `4) ⚠️ Урьдчилгаа төлбөр ОДООГООР БАЙХГҮЙ. Захиалга үүсмэгц шууд баталгаажна — ` +
+    `төлбөр/урьдчилгааны тухай БҮҮ яри. Зүгээр л захиалга баталгаажсаныг эелдэг мэдэгд.\n` +
+    `5) Цуцлах хүсэлт ирвэл cancel_booking tool-ийг дууд. Цуцлахад ямар ч торгууль/төлбөргүй. ` +
+    `Зүгээр л боломжтой бол цагаасаа ${config.cancelNoticeHours} цагийн өмнөхөн мэдэгдвэл ` +
+    `тэр цагийг өөр хүнд санал болгож чаддаг гэдгийг ЗӨӨЛӨН, хүндэтгэлтэй хэлээрэй.` +
+    referredNote +
+    `\n\nҮйлчилгээний сан (үндсэн дараалал):\n${catalog}`
   );
 }
 
@@ -100,14 +145,23 @@ async function runTool(name, input, ctx) {
         addons: s.addons,
       }));
     }
+    case "check_availability": {
+      const { ordered, morning, later } = await suggestSlots(input.date);
+      return {
+        date: input.date,
+        available: ordered, // эрэмбэлсэн (өглөө эхэндээ)
+        morning, // 10:00–13:00 сул цаг
+        later, // үлдсэн сул цаг
+        note: ordered.length ? "Өглөөний цагийг эхэлж санал болго." : "Энэ өдөр сул цаг алга.",
+      };
+    }
     case "create_booking": {
       const { booking } = await createBooking({ ...input, psid: ctx.psid });
-      const invoice = await getPaymentProvider().createInvoice(booking);
       return {
         ok: true,
         summary: bookingSummary(booking),
-        payment: invoice.instructions,
         bookingId: booking.id,
+        note: "Урьдчилгаа төлбөр одоогоор шаардлагагүй. Захиалга баталгаажлаа.",
       };
     }
     case "cancel_booking": {
@@ -135,7 +189,7 @@ export async function handleCustomerMessage({ psid, text }) {
   const history = conversations.get(psid) || [];
   history.push({ role: "user", content: text });
 
-  const system = await buildSystemPrompt();
+  const system = await buildSystemPrompt(psid);
   const ctx = { psid };
 
   // Tool-use loop (хамгийн ихдээ 5 эргэлт)

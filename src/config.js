@@ -19,8 +19,19 @@ export const config = {
     .map((s) => s.trim())
     .filter(Boolean),
 
+  // --- Ажиллах цаг / цагийн хуваарь ---
+  salonOpenHour: Number(process.env.SALON_OPEN_HOUR || 10), // өдөр бүр 10:00
+  salonCloseHour: Number(process.env.SALON_CLOSE_HOUR || 19), // 19:00 хүртэл
+  slotMinutes: Number(process.env.SLOT_MINUTES || 60), // нэг слотын урт (30мин–1цаг)
+  priorityStartHour: Number(process.env.PRIORITY_START_HOUR || 10), // эхэлж санал болгох цонх
+  priorityEndHour: Number(process.env.PRIORITY_END_HOUR || 13), // (10:00–13:00)
+
+  // --- Төлбөр ---
+  prepaymentEnabled: (process.env.PREPAYMENT_ENABLED || "false") === "true", // одоогоор урьдчилгаагүй
+
   // --- Захиалга / цуцлах бодлого ---
-  cancelRefundHours: Number(process.env.CANCEL_REFUND_HOURS || 4),
+  // Цаг цуцлахдаа хэдэн цагийн өмнө мэдэгдэх нь зүйтэй (зөөлөн сануулга)
+  cancelNoticeHours: Number(process.env.CANCEL_NOTICE_HOURS || 4),
   reminderLeadHours: Number(process.env.REMINDER_LEAD_HOURS || 24),
 
   // --- Cron ---

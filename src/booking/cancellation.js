@@ -1,34 +1,34 @@
 // ─────────────────────────────────────────────────────────────
-//  Цаг цуцлах бодлого.
+//  Цаг цуцлах журам (зөөлөн, хүндэтгэлтэй).
 //
-//  Үйлчлүүлэгч захиалгаа цуцлах үед: захиалгатай цаг хүртэл
-//  CANCEL_REFUND_HOURS (default 4) цаг буюу түүнээс их хугацаа үлдсэн бол
-//  урьдчилгаа төлбөрийг БУЦААНА. Үгүй бол буцаахгүй.
+//  Одоогоор урьдчилгаа төлбөргүй тул цаг цуцлахад мөнгө буцаах асуудал гарахгүй.
+//  Зөвхөн эелдэг хүсэлт: боломжтой бол цагаасаа config.cancelNoticeHours (default 4)
+//  цагийн өмнө мэдэгдвэл бид тэр цагийг өөр хүнд санал болгож чадна.
 // ─────────────────────────────────────────────────────────────
 
 import { config } from "../config.js";
 import { repository } from "../db/repository.js";
 
 /**
- * Цуцлалтад урьдчилгаа буцаах эсэхийг тооцох.
- * @param {object} booking — startsAt (ISO) талбартай байх
- * @param {Date}   [now]   — одоогийн цаг (тест хийхэд дамжуулж болно)
- * @returns {{refundEligible: boolean, hoursUntil: number, thresholdHours: number}}
+ * Цуцлалтын цагийг үнэлэх (эрт мэдэгдсэн эсэх).
+ * @param {object} booking — startsAt (ISO) талбартай
+ * @param {Date}   [now]
+ * @returns {{earlyNotice: boolean, hoursUntil: number, noticeHours: number}}
  */
 export function evaluateCancellation(booking, now = new Date()) {
-  const thresholdHours = config.cancelRefundHours;
+  const noticeHours = config.cancelNoticeHours;
   const start = new Date(booking.startsAt);
   const hoursUntil = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
   return {
-    refundEligible: hoursUntil >= thresholdHours,
+    earlyNotice: hoursUntil >= noticeHours,
     hoursUntil: Math.round(hoursUntil * 10) / 10,
-    thresholdHours,
+    noticeHours,
   };
 }
 
 /**
- * Захиалгыг цуцлах.
- * @returns {Promise<{booking: object, refundEligible: boolean, hoursUntil: number, thresholdHours: number}>}
+ * Захиалгыг цуцлах (цагийг сул болгоно).
+ * @returns {Promise<{booking, earlyNotice, hoursUntil, noticeHours}>}
  */
 export async function cancelBooking(bookingId, now = new Date()) {
   const booking = await repository.getBooking(bookingId);
@@ -41,25 +41,22 @@ export async function cancelBooking(bookingId, now = new Date()) {
   const updated = await repository.updateBooking(bookingId, {
     status: "cancelled",
     cancelledAt: now.toISOString(),
-    refundEligible: evaln.refundEligible,
-    refundIssued: false, // бодит буцаалтыг ажилтан/төлбөрийн систем хийнэ
   });
 
   return { booking: updated, ...evaln };
 }
 
-/** Цуцлалтын хариу мессеж үүсгэх. */
+/** Цуцлалтын хариу мессеж — зөөлөн, хүндэтгэлтэй. */
 export function cancellationMessage(evaln) {
-  if (evaln.refundEligible) {
+  if (evaln.earlyNotice) {
     return (
-      `Таны захиалга цуцлагдлаа. Захиалгатай цаг хүртэл ${evaln.hoursUntil} цаг үлдсэн ` +
-      `(≥ ${evaln.thresholdHours} цаг) тул урьдчилгаа төлбөрийг буцаан олгоно. ` +
-      `Манай ажилтан тантай холбогдож буцаалтыг хийнэ.`
+      `Таны цаг цуцлагдлаа, ойлголттойгоор хүлээж авлаа 🌸 ` +
+      `Эрт мэдэгдсэнд баярлалаа. Дараа дахин үйлчлүүлэхээр цагаа захиалаарай 💫`
     );
   }
   return (
-    `Таны захиалга цуцлагдлаа. Гэвч захиалгатай цаг хүртэл ${evaln.hoursUntil} цаг л үлдсэн ` +
-    `(${evaln.thresholdHours} цагаас бага) тул урьдчилгаа төлбөрийг буцаах боломжгүй байна. ` +
-    `Ойлгосонд баярлалаа.`
+    `Таны цаг цуцлагдлаа 🌸 Ямар ч асуудалгүй. ` +
+    `Зүгээр л дараагийн удаа боломжтой бол цагаасаа ${evaln.noticeHours} цагийн өмнөхөн ` +
+    `мэдэгдээрэй — ингэвэл бид тэр цагийг өөр хүнд санал болгож амжина. Ойлгосонд баярлалаа 💫`
   );
 }

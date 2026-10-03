@@ -124,9 +124,10 @@ async function runTool(name, input) {
       return { ok: true, service: svc };
     }
     case "add_booking": {
-      const { booking } = await createBooking(input);
+      // override:true — ажилтан гараар оруулах тул слот шалгалтыг алгасна
+      const { booking } = await createBooking({ ...input, override: true });
       if (input.confirmed) await confirmBooking(booking.id);
-      return { ok: true, bookingId: booking.id, memo: booking.paymentMemo };
+      return { ok: true, bookingId: booking.id, date: booking.date, time: booking.time };
     }
     case "list_bookings": {
       const bookings = await repository.listBookings(input || {});

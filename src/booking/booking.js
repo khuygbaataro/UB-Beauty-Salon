@@ -2,13 +2,17 @@
 //  Цаг захиалгын логик.
 //
 //  Урсгал: үйлчлүүлэгчээс (1) утасны дугаар, (2) үйлчилгээ, (3) цаг/өдөр
-//  тодруулж авна → урьдчилгаа төлбөрийн заавар өгнө. Гүйлгээний утга дээр
-//  `цаг, өдөр, утасны дугаар` бичих зарчимтай (банкны гүйлгээг захиалгатай
-//  тааруулахад ашиглана).
+//  тодруулж авна → слот сул эсэхийг шалгаад захиалга бүртгэнэ.
+//
+//  ⚠️ Одоогоор урьдчилгаа төлбөргүй (config.prepaymentEnabled=false) тул
+//     захиалга шууд "confirmed" болж, сануулга ажиллана. (Дараа төлбөр нэмж болно.)
+//  paymentMemo (цаг, өдөр, утас) нь дотоод лавлагаа болж хадгалагдана.
 // ─────────────────────────────────────────────────────────────
 
+import { config } from "../config.js";
 import { repository } from "../db/repository.js";
 import { formatMnt } from "../customer/greeting.js";
+import { isValidSlot, isSlotAvailable } from "./schedule.js";
 
 /** Монгол утасны дугаар эсэхийг шалгах (8 оронтой, 6/7/8/9-өөр эхэлнэ). */
 export function isValidPhone(phone) {
@@ -45,14 +49,25 @@ export async function createBooking(p) {
   const service = await repository.getService(p.serviceId);
   if (!service) throw new Error("Сонгосон үйлчилгээ олдсонгүй.");
 
-  // Урьдчилгаа дүнг тодорхойлох
+  // Слот шалгах (admin override=true үед алгасна)
+  if (!p.override) {
+    if (!isValidSlot(p.time)) {
+      throw new Error(
+        `Сонгосон цаг ажиллах цагийн гадна байна. Бид ${config.salonOpenHour}:00–${config.salonCloseHour}:00 цагт ажилладаг.`,
+      );
+    }
+    if (!(await isSlotAvailable(p.date, p.time))) {
+      throw new Error("Энэ цаг аль хэдийн захиалагдсан байна. Өөр цаг сонгоно уу.");
+    }
+  }
+
+  // Үнэ/урьдчилгаа (одоогоор урьдчилгаагүй тул prepayment=null)
   const variant = p.variantId ? service.variants?.find((v) => v.id === p.variantId) : null;
   const basePrice = variant ? variant.price : service.price;
-  const prepayment = service.prepayment ?? null; // тодорхойгүй бол null
+  const prepayment = config.prepaymentEnabled ? (service.prepayment ?? null) : null;
 
-  // Захиалгын эхлэх/дуусах ISO цаг (цагийн бүс: Asia/Ulaanbaatar, +08:00)
+  // Захиалгын эхлэх ISO цаг (цагийн бүс: Asia/Ulaanbaatar, +08:00)
   const startsAt = `${p.date}T${p.time}:00+08:00`;
-
   const memo = buildPaymentMemo({ time: p.time, date: p.date, phone: p.phone });
 
   const booking = await repository.createBooking({
@@ -68,6 +83,8 @@ export async function createBooking(p) {
     price: basePrice ?? null,
     prepayment,
     paymentMemo: memo,
+    // Урьдчилгаагүй бол шууд баталгаажсан (сануулга ажиллана)
+    status: config.prepaymentEnabled ? "pending" : "confirmed",
   });
 
   return { booking, service, variant };
@@ -85,7 +102,7 @@ export async function confirmBooking(bookingId) {
 /** Үйлчлүүлэгчид харуулах захиалгын хураангуй. */
 export function bookingSummary(booking) {
   const lines = [
-    `📅 Захиалгын мэдээлэл:`,
+    `📅 Таны захиалга бүртгэгдлээ:`,
     `• Үйлчилгээ: ${booking.serviceName}${booking.variantName ? ` (${booking.variantName})` : ""}`,
     `• Огноо: ${booking.date}`,
     `• Цаг: ${booking.time}`,
@@ -93,6 +110,5 @@ export function bookingSummary(booking) {
   ];
   if (booking.price != null) lines.push(`• Үнэ: ${formatMnt(booking.price)}`);
   if (booking.prepayment != null) lines.push(`• Урьдчилгаа: ${formatMnt(booking.prepayment)}`);
-  lines.push(``, `Гүйлгээний утга: ${booking.paymentMemo}`);
   return lines.join("\n");
 }
