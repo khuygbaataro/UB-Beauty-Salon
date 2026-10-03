@@ -24,7 +24,9 @@ export const seedServices = [
     name: "GREEN PEEL",
     subtitle: "S28 GREEN SPICULE PEELING",
     category: "peeling",
-    image: null, // зураг URL (https://...) — дараа нэмнэ
+    // ⚠️ fbcdn холбоос — хугацаа дуусдаг (түр зуурынх). Байнгын host руу солих нь зүйтэй.
+    image:
+      "https://scontent.fuln6-3.fna.fbcdn.net/v/t39.30808-6/788815546_1442849281276512_4563988429454023377_n.jpg?stp=dst-jpg_tt6&cstp=mx1145x1374&ctp=s600x600&_nc_cat=107&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=833d8c&_nc_ohc=8Ez3xNI4pukQ7kNvwELouNa&_nc_oc=Adp_3WQrrcThso4CfwCxRvQLvrIfW0jhOea_8ojx2uchtA-3ODW_uuZCMsmlw14Tmlc&_nc_zt=23&_nc_ht=scontent.fuln6-3.fna&_nc_gid=4OACv8kVZihAxnQxYvF6Ig&_nc_ss=7b2a8&oh=00_AQN20XCdWl5Mi-yuch6N3ItcSpf1Rs1FcIPqQiPRDOZa3g&oe=6AC643EE",
     tagline: "Байгалийн бичил зүүт найрлагатай арьс шинэчлэх арчилгаа 🌿",
     price: null,
     prepayment: null,

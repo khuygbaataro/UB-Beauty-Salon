@@ -22,7 +22,7 @@ import { runReminders } from "./reminders/reminders.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-03-10"; // deploy-ийг ялгах тэмдэг
+const VERSION = "2026-10-03-11"; // deploy-ийг ялгах тэмдэг
 
 export const app = express();
 app.use(express.json());
