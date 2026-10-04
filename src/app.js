@@ -9,6 +9,7 @@
 //    GET  /webhook-artist    — Facebook webhook баталгаажуулалт (артистын хуудас)
 //    POST /webhook-artist    — Facebook Messenger эвент (артистын AI)
 //    POST /admin/telegram    — Telegram webhook (Admin AI; зураг → Cloudinary)
+//    GET  /privacy           — Нууцлалын бодлого (Facebook App-д)
 //    GET  /cron/reminders    — Vercel Cron → сануулга илгээх
 // ─────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ import { uploadServiceImage, isCloudinaryConfigured } from "./media/cloudinary.j
 import { answerQuestion, parseQid } from "./escalation.js";
 import { sendText, sendArtistText } from "./messenger/sendApi.js";
 import { runReminders } from "./reminders/reminders.js";
+import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
@@ -50,6 +52,11 @@ app.get("/status", (_req, res) => res.json(healthPayload()));
 
 // favicon хүсэлтийг чимээгүй өнгөрөөх (log дээр 404 гарахгүй)
 app.get(["/favicon.ico", "/favicon.png"], (_req, res) => res.sendStatus(204));
+
+// ───────── Нууцлалын бодлого (Facebook App-д шаардлагатай) ─────────
+app.get(["/privacy", "/privacy-policy"], (_req, res) => {
+  res.set("Content-Type", "text/html; charset=utf-8").send(privacyPageHtml());
+});
 
 // ───────── Facebook webhook баталгаажуулалт ─────────
 app.get("/webhook", (req, res) => {
