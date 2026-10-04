@@ -7,6 +7,7 @@
 //  Түлхүүрүүд:
 //    hash  svc        — үйлчилгээ (id -> object)
 //    hash  bk         — захиалга
+//    hash  art        — артистууд (хуваарьтай ажилтан)
 //    hash  q          — escalation асуултууд
 //    hash  kb         — мэдлэгийн сан (Q&A)
 //    str   conv:<psid>— ярианы түүх (JSON array), TTL
@@ -100,6 +101,8 @@ export function createRedisStore() {
       if (filter.status) arr = arr.filter((b) => b.status === filter.status);
       if (filter.phone) arr = arr.filter((b) => b.phone === filter.phone);
       if (filter.psid) arr = arr.filter((b) => b.psid === filter.psid);
+      if (filter.artistId) arr = arr.filter((b) => b.artistId === filter.artistId);
+      if (filter.date) arr = arr.filter((b) => b.date === filter.date);
       return arr;
     },
     async updateBooking(id, patch) {
@@ -107,6 +110,50 @@ export function createRedisStore() {
       if (!cur) return null;
       const upd = { ...cur, ...patch, id };
       await redis.hset("bk", { [id]: upd });
+      return upd;
+    },
+
+    // ───────── Артистууд ─────────
+    async createArtist(data) {
+      const artist = {
+        id: data.id || genId("art"),
+        psid: null,
+        name: "",
+        phone: null,
+        role: "artist", // artist | manager
+        regCode: null, // нэг удаагийн баталгаажуулах код
+        serviceIds: [],
+        weeklySchedule: {},
+        timeOff: [],
+        active: true,
+        createdAt: new Date().toISOString(),
+        ...data,
+      };
+      await redis.hset("art", { [artist.id]: artist });
+      return artist;
+    },
+    async getArtist(id) {
+      return (await redis.hget("art", id)) || null;
+    },
+    async getArtistByPsid(psid) {
+      const arr = valuesOf(await redis.hgetall("art"));
+      return arr.find((a) => a.psid === psid) || null;
+    },
+    async getArtistByCode(code) {
+      const arr = valuesOf(await redis.hgetall("art"));
+      return arr.find((a) => a.regCode && a.regCode === code) || null;
+    },
+    async listArtists(filter = {}) {
+      let arr = valuesOf(await redis.hgetall("art"));
+      if (filter.active !== undefined) arr = arr.filter((a) => a.active === filter.active);
+      if (filter.serviceId) arr = arr.filter((a) => (a.serviceIds || []).includes(filter.serviceId));
+      return arr;
+    },
+    async updateArtist(id, patch) {
+      const cur = await redis.hget("art", id);
+      if (!cur) return null;
+      const upd = { ...cur, ...patch, id };
+      await redis.hset("art", { [id]: upd });
       return upd;
     },
 

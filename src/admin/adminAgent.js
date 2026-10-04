@@ -16,6 +16,7 @@ import { repository } from "../db/repository.js";
 import { createMessage, extractText, extractToolUses } from "../ai/anthropic.js";
 import { createBooking, confirmBooking } from "../booking/booking.js";
 import { answerQuestion } from "../escalation.js";
+import { createArtistInvite } from "../artist/registration.js";
 
 const adminConversations = new Map(); // adminId -> messages[]  (TODO: DB)
 const MAX_HISTORY = 20;
@@ -28,13 +29,18 @@ const tools = [
   },
   {
     name: "update_service",
-    description: "Байгаа үйлчилгээний талбарыг шинэчлэх (үнэ, урьдчилгаа, тайлбар гэх мэт).",
+    description: "Байгаа үйлчилгээний талбарыг шинэчлэх (нэр, үнэ, зураг, хугацаа, тайлбар гэх мэт).",
     input_schema: {
       type: "object",
       properties: {
         serviceId: { type: "string" },
+        name: { type: "string" },
+        category: { type: "string" },
         price: { type: ["number", "null"], description: "Үнэ төгрөгөөр" },
         prepayment: { type: ["number", "null"], description: "Урьдчилгаа төгрөгөөр" },
+        durationMinutes: { type: ["number", "null"], description: "Үргэлжлэх хугацаа минутаар" },
+        image: { type: "string", description: "Зургийн ХОЛБООС (https://...)" },
+        tagline: { type: "string" },
         description: { type: "string" },
         active: { type: "boolean" },
       },
@@ -44,14 +50,18 @@ const tools = [
   },
   {
     name: "create_service",
-    description: "Шинэ үйлчилгээ нэмэх.",
+    description:
+      "Шинэ үйлчилгээ нэмэх. Нэр, ангилал, үнэ, зураг (URL), үргэлжлэх хугацаа (минут)-ыг цуглуулж оруул.",
     input_schema: {
       type: "object",
       properties: {
         name: { type: "string" },
-        category: { type: "string" },
-        price: { type: ["number", "null"] },
-        prepayment: { type: ["number", "null"] },
+        category: { type: "string", description: "жишээ: peeling, laser, lashes, nails, facial" },
+        price: { type: ["number", "null"], description: "Үнэ төгрөгөөр" },
+        prepayment: { type: ["number", "null"], description: "Урьдчилгаа төгрөгөөр" },
+        durationMinutes: { type: ["number", "null"], description: "Үргэлжлэх хугацаа минутаар (жишээ 60)" },
+        image: { type: "string", description: "Зургийн ХОЛБООС (https://...). Байнгын host байх ёстой." },
+        tagline: { type: "string", description: "Богино онцлох мөр (1 өгүүлбэр)" },
         description: { type: "string" },
       },
       required: ["name"],
@@ -107,6 +117,45 @@ const tools = [
       additionalProperties: false,
     },
   },
+  {
+    name: "create_artist",
+    description:
+      "Шинэ артист эсвэл менежерийн УРИЛГА үүсгэх. Систем нэг удаагийн 6 оронтой код буцаана — " +
+      "тэр кодыг хүнд өг. Тэр хүн артистын Facebook хуудас руу кодоо илгээхэд бүртгэл идэвхжинэ. " +
+      "role='manager' бол хянах/удирдах эрхтэй болно. serviceIds нь хийдэг үйлчилгээний id-ууд (list_services-ээс).",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        role: { type: "string", enum: ["artist", "manager"], description: "artist (default) | manager" },
+        serviceIds: { type: "array", items: { type: "string" }, description: "Хийдэг үйлчилгээний id-ууд" },
+        phone: { type: "string" },
+      },
+      required: ["name"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "list_artists",
+    description: "Бүртгэлтэй артистуудыг (хуваарь, хийдэг үйлчилгээтэй нь) жагсаах.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "update_artist",
+    description: "Артистын мэдээлэл шинэчлэх (нэр, psid, хийдэг үйлчилгээ, идэвхтэй эсэх).",
+    input_schema: {
+      type: "object",
+      properties: {
+        artistId: { type: "string" },
+        name: { type: "string" },
+        psid: { type: "string" },
+        serviceIds: { type: "array", items: { type: "string" } },
+        active: { type: "boolean" },
+      },
+      required: ["artistId"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 function buildSystemPrompt() {
@@ -120,12 +169,39 @@ function buildSystemPrompt() {
     `Эргэлзвэл ажилтнаас дахин тодруул.\n` +
     `• Өөрчлөлт хийхээс өмнө ойлгомжгүй зүйлийг тодруул (жишээ: аль үйлчилгээ, яг ямар үнэ).\n` +
     `• Үнэ/урьдчилгааг төгрөгөөр тоогоор оруул.\n` +
+    `• ШИНЭ ҮЙЛЧИЛГЭЭ нэмэх эсвэл засахдаа дараах 5 зүйлийг БҮРЭН цуглуул, дутууг нь ээлжлэн нэхэж асуу: ` +
+    `(1) нэр, (2) ангилал, (3) үнэ (төгрөгөөр; лазер мэт хэсэг бүрийн үнэтэй бол түүнийг тодруул), ` +
+    `(4) зураг — админ зургаа Telegram-аар ШУУД илгээж болно (систем Cloudinary-д байршуулаад URL-ийг ` +
+    `өгнө), эсвэл https:// холбоос хэлж болно, (5) үргэлжлэх хугацаа минутаар. Бүгдийг авсны дараа create_service/` +
+    `update_service-ийг дууд, дараа нь оруулсан утгуудыг эргэн баталгаажуулж хэл.\n` +
     `• Захиалга бүртгэхэд утас, үйлчилгээ (list_services-ийн id), огноо, цаг заавал хэрэгтэй.\n` +
     `• Үйлчлүүлэгчийн асуулт (open questions) ирвэл list_open_questions-ээр хараад answer_question-аар ` +
     `хариул. Хариу автоматаар үйлчлүүлэгч рүү очиж, мэдлэгийн санд хадгалагдана. (Telegram дээр ` +
     `асуултын мэдэгдэл рүү шууд Reply хийж бичсэн ч болно.)\n` +
+    `• АРТИСТ/МЕНЕЖЕР бүртгэх: Эхлээд list_services-ээр үйлчилгээнүүдийг id-тэй нь харуулж, ` +
+    `тэр артист АЛЬ үйлчилгээнүүдийг хийдгийг ажилтнаас асуу (жишээ: "GREEN PEEL, лазер, сормуус"). ` +
+    `Ажилтны хэлсэн нэрсийг тохирох id болгон хөрвүүлж create_artist-ийн serviceIds-д ОЛОН id өг ` +
+    `(нэг артист хэд хэдэн үйлчилгээ хийж болно). Шаардлагатай үйлчилгээ санд байхгүй бол эхлээд ` +
+    `create_service-ээр нэм. Бүртгэсний дараа сонгогдсон үйлчилгээг НЭРЭЭР нь болон 6 оронтой КОДыг ` +
+    `тодорхой баталгаажуулж хэл — тэр кодыг тухайн хүнд дамжуулахыг сануул. ` +
+    `Хүн артистын Facebook хуудас руу кодоо илгээхэд бүртгэл идэвхжиж, дараа нь өөрөө хуваараа тохируулна. ` +
+    `Артистын хийдэг үйлчилгээг өөрчлөхдөө update_artist-ийн serviceIds-г ашигла. ` +
+    `list_artists-ээр бүгдийг жагсаана. (invalidServiceIds буцвал тэр id буруу — засаж дахин оролд.)\n` +
     `• Үйлдэл бүрийн дараа юу өөрчлөгдсөнийг товч баталгаажуулж хэл.`
   );
+}
+
+/** serviceIds-г бодит үйлчилгээтэй тулгаж шалгах (буруу id-г илрүүлнэ). */
+async function resolveServiceIds(ids = []) {
+  const services = await repository.listServices({ activeOnly: false });
+  const byId = new Map(services.map((s) => [s.id, s.name]));
+  const valid = [];
+  const invalid = [];
+  for (const id of ids) {
+    if (byId.has(id)) valid.push({ id, name: byId.get(id) });
+    else invalid.push(id);
+  }
+  return { valid, invalid };
 }
 
 async function runTool(name, input) {
@@ -135,8 +211,11 @@ async function runTool(name, input) {
       return services.map((s) => ({
         id: s.id,
         name: s.name,
+        category: s.category ?? null,
         price: s.price,
         prepayment: s.prepayment,
+        durationMinutes: s.durationMinutes ?? null,
+        hasImage: Boolean(s.image),
         active: s.active,
       }));
     }
@@ -172,6 +251,48 @@ async function runTool(name, input) {
     }
     case "answer_question": {
       return answerQuestion(input.questionId, input.answer, input.answeredBy);
+    }
+    case "create_artist": {
+      const { valid, invalid } = await resolveServiceIds(input.serviceIds || []);
+      const { artist, code } = await createArtistInvite({ ...input, serviceIds: valid.map((v) => v.id) });
+      return {
+        ok: true,
+        artistId: artist.id,
+        name: artist.name,
+        role: artist.role,
+        services: valid.map((v) => v.name), // сонгосон үйлчилгээг нэрээр нь баталгаажуулах
+        invalidServiceIds: invalid, // буруу/олдоогүй id байвал
+        code,
+        note: `Энэ 6 оронтой кодыг (${code}) тухайн хүнд өг. Тэр артистын хуудас руу кодоо илгээхэд бүртгэл идэвхжинэ.`,
+      };
+    }
+    case "list_artists": {
+      const artists = await repository.listArtists({});
+      return artists.map((a) => ({
+        id: a.id,
+        name: a.name,
+        serviceIds: a.serviceIds || [],
+        hasPsid: Boolean(a.psid),
+        weeklySchedule: a.weeklySchedule || {},
+        timeOff: a.timeOff || [],
+        active: a.active,
+      }));
+    }
+    case "update_artist": {
+      const { artistId, ...patch } = input;
+      let invalid = [];
+      if (patch.serviceIds) {
+        const resolved = await resolveServiceIds(patch.serviceIds);
+        patch.serviceIds = resolved.valid.map((v) => v.id);
+        invalid = resolved.invalid;
+      }
+      const updated = await repository.updateArtist(artistId, patch);
+      if (!updated) return { ok: false, error: "Артист олдсонгүй." };
+      return {
+        ok: true,
+        artist: { id: updated.id, name: updated.name, role: updated.role, serviceIds: updated.serviceIds, active: updated.active },
+        invalidServiceIds: invalid,
+      };
     }
     default:
       return { ok: false, error: `Үл мэдэгдэх tool: ${name}` };

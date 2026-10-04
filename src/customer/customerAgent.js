@@ -20,6 +20,7 @@ import { priceSummary } from "./greeting.js";
 import { createBooking, bookingSummary } from "../booking/booking.js";
 import { cancelBooking, cancellationMessage } from "../booking/cancellation.js";
 import { suggestSlots } from "../booking/schedule.js";
+import { suggestServiceSlots, artistsForService } from "../booking/assignment.js";
 import { presentOneService } from "./present.js";
 import { escalateQuestion, searchKnowledge } from "../escalation.js";
 
@@ -59,11 +60,12 @@ const tools = [
   {
     name: "check_availability",
     description:
-      "Тодорхой өдрийн сул цагуудыг авах. Эхэнд өглөөний (10:00–13:00) сул цаг, дараа нь үлдсэн сул цаг эрэмбэлэгдэж ирнэ. Цаг санал болгохоосоо өмнө ЗААВАЛ энэ tool-ээр сул цагийг шалга.",
+      "Тодорхой өдрийн сул цагуудыг авах. serviceId өгвөл тухайн үйлчилгээг хийдэг артистуудын сул цагийг тооцно. Эхэнд өглөөний (10:00–13:00) сул цаг, дараа нь үлдсэн сул цаг эрэмбэлэгдэж ирнэ. Цаг санал болгохоосоо өмнө ЗААВАЛ энэ tool-ээр сул цагийг шалга.",
     input_schema: {
       type: "object",
       properties: {
         date: { type: "string", description: "Огноо YYYY-MM-DD хэлбэрээр" },
+        serviceId: { type: "string", description: "Үйлчилгээний id (list_services-ээс). Боломжтой бол заавал өг." },
       },
       required: ["date"],
       additionalProperties: false,
@@ -222,7 +224,15 @@ async function runTool(name, input, ctx) {
       return { ok: true, presented: svc.name };
     }
     case "check_availability": {
-      const { ordered, morning, later } = await suggestSlots(input.date);
+      // Үйлчилгээг хийдэг артист бүртгэлтэй бол артистын сул цагаар тооцно,
+      // эс бол (артист байхгүй/үйлчилгээ зааж өгөөгүй) хуучин салон түвшний цагаар.
+      let ordered, morning, later;
+      const artists = input.serviceId ? await artistsForService(input.serviceId) : [];
+      if (input.serviceId && artists.length) {
+        ({ ordered, morning, later } = await suggestServiceSlots(input.serviceId, input.date));
+      } else {
+        ({ ordered, morning, later } = await suggestSlots(input.date));
+      }
       return {
         date: input.date,
         available: ordered, // эрэмбэлсэн (өглөө эхэндээ)

@@ -74,6 +74,14 @@ export const repository = {
   listBookings: (filter) => getStore().listBookings(filter),
   updateBooking: (id, patch) => getStore().updateBooking(id, patch),
 
+  // Artists (хуваарьтай ажилтан)
+  createArtist: (data) => getStore().createArtist(data),
+  getArtist: (id) => getStore().getArtist(id),
+  getArtistByPsid: (psid) => getStore().getArtistByPsid(psid),
+  getArtistByCode: (code) => getStore().getArtistByCode(code),
+  listArtists: (filter) => getStore().listArtists(filter),
+  updateArtist: (id, patch) => getStore().updateArtist(id, patch),
+
   // Escalation questions
   createQuestion: (data) => getStore().createQuestion(data),
   getQuestion: (id) => getStore().getQuestion(id),

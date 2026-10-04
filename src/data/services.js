@@ -8,6 +8,8 @@
 //   category    — ангилал (peeling | lifting | package | laser | lashes)
 //   price       — үнэ (төгрөг). Хараахан мэдэгдээгүй бол null.
 //   prepayment  — урьдчилгаа төлбөр (төгрөг). Тодорхойгүй бол null.
+//   durationMinutes — үргэлжлэх хугацаа минутаар (v1-д мэдээллийн зориулалттай;
+//                     дараагийн version-д слот тооцоонд ашиглана). Тодорхойгүй бол null.
 //   variants    — үнийн хувилбарууд (жишээ: лазер — биеийн хэсэг тус бүр)
 //   addons      — нэмэлт сонголт (жишээ: Laser/Carboxy/Oxygen)
 //   description — товч танилцуулга

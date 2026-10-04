@@ -22,6 +22,7 @@ export function createJsonStore() {
   // seed-ээс хуулж авна (seed-ийг гэмтээхгүйн тулд)
   const services = clone(seedServices);
   const bookings = [];
+  const artists = []; // артистууд (хуваарьтай ажилтан)
   const questions = []; // escalation: ажилтанд дамжуулсан асуултууд
   const knowledge = []; // мэдлэгийн сан: хариулагдсан Q&A
   const conversations = new Map(); // psid -> messages[]
@@ -84,6 +85,8 @@ export function createJsonStore() {
       if (filter.status) result = result.filter((b) => b.status === filter.status);
       if (filter.phone) result = result.filter((b) => b.phone === filter.phone);
       if (filter.psid) result = result.filter((b) => b.psid === filter.psid);
+      if (filter.artistId) result = result.filter((b) => b.artistId === filter.artistId);
+      if (filter.date) result = result.filter((b) => b.date === filter.date);
       return result.map(clone);
     },
 
@@ -92,6 +95,55 @@ export function createJsonStore() {
       if (i === -1) return null;
       bookings[i] = { ...bookings[i], ...patch, id };
       return clone(bookings[i]);
+    },
+
+    // ───────── Артистууд (artists) ─────────
+    async createArtist(data) {
+      const artist = {
+        id: data.id || genId("art"),
+        psid: null,
+        name: "",
+        phone: null,
+        role: "artist", // artist | manager
+        regCode: null, // нэг удаагийн баталгаажуулах код (psid холбогдоход цэвэрлэгдэнэ)
+        serviceIds: [], // хийдэг үйлчилгээний id-ууд
+        weeklySchedule: {}, // { mon:{start:"10:00",end:"18:00"}, ... }
+        timeOff: [], // амралтын тодорхой өдрүүд ["YYYY-MM-DD"]
+        active: true,
+        createdAt: new Date().toISOString(),
+        ...data,
+      };
+      artists.push(artist);
+      return clone(artist);
+    },
+
+    async getArtist(id) {
+      const a = artists.find((x) => x.id === id);
+      return a ? clone(a) : null;
+    },
+
+    async getArtistByPsid(psid) {
+      const a = artists.find((x) => x.psid === psid);
+      return a ? clone(a) : null;
+    },
+
+    async getArtistByCode(code) {
+      const a = artists.find((x) => x.regCode && x.regCode === code);
+      return a ? clone(a) : null;
+    },
+
+    async listArtists(filter = {}) {
+      let result = artists;
+      if (filter.active !== undefined) result = result.filter((a) => a.active === filter.active);
+      if (filter.serviceId) result = result.filter((a) => (a.serviceIds || []).includes(filter.serviceId));
+      return result.map(clone);
+    },
+
+    async updateArtist(id, patch) {
+      const i = artists.findIndex((x) => x.id === id);
+      if (i === -1) return null;
+      artists[i] = { ...artists[i], ...patch, id };
+      return clone(artists[i]);
     },
 
     // ───────── Escalation асуултууд (questions) ─────────

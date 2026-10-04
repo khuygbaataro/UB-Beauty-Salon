@@ -4,15 +4,10 @@ import { config } from "../config.js";
 
 const GRAPH_URL = "https://graph.facebook.com/v21.0/me/messages";
 
-/**
- * Messenger-ээр текст мессеж илгээх.
- * @param {string} psid — хүлээн авагчийн Page-Scoped ID
- * @param {string} text — мессежийн текст
- * @param {string} [messagingType] — RESPONSE (default) | MESSAGE_TAG | UPDATE
- */
-export async function sendText(psid, text, messagingType = "RESPONSE") {
-  if (!config.fbPageAccessToken) {
-    console.warn("[messenger] FB_PAGE_ACCESS_TOKEN алга — мессеж илгээгдсэнгүй:", text);
+/** Дотоод: өгсөн page токеноор текст мессеж илгээх. */
+async function postText(token, psid, text, messagingType) {
+  if (!token) {
+    console.warn("[messenger] Page токен алга — мессеж илгээгдсэнгүй:", text);
     return { ok: false, skipped: true };
   }
 
@@ -23,7 +18,7 @@ export async function sendText(psid, text, messagingType = "RESPONSE") {
   };
 
   try {
-    const res = await fetch(`${GRAPH_URL}?access_token=${config.fbPageAccessToken}`, {
+    const res = await fetch(`${GRAPH_URL}?access_token=${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -38,6 +33,25 @@ export async function sendText(psid, text, messagingType = "RESPONSE") {
     console.error("[messenger] Сүлжээний алдаа:", err);
     return { ok: false, error: String(err) };
   }
+}
+
+/**
+ * Messenger-ээр ҮЙЛЧЛҮҮЛЭГЧ рүү текст мессеж илгээх (үйлчлүүлэгчийн хуудас).
+ * @param {string} psid — хүлээн авагчийн Page-Scoped ID
+ * @param {string} text — мессежийн текст
+ * @param {string} [messagingType] — RESPONSE (default) | MESSAGE_TAG | UPDATE
+ */
+export async function sendText(psid, text, messagingType = "RESPONSE") {
+  return postText(config.fbPageAccessToken, psid, text, messagingType);
+}
+
+/**
+ * Messenger-ээр АРТИСТ руу текст мессеж илгээх (артистын тусдаа хуудас).
+ * Артистын токен тохируулаагүй бол (dev) үйлчлүүлэгчийн хуудасныхыг түр ашиглана.
+ */
+export async function sendArtistText(psid, text, messagingType = "RESPONSE") {
+  const token = config.artistPageAccessToken || config.fbPageAccessToken;
+  return postText(token, psid, text, messagingType);
 }
 
 /**

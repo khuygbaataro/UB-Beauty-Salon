@@ -6,7 +6,9 @@
 //    GET  /                  — эрүүл мэндийн шалгалт
 //    GET  /webhook           — Facebook webhook баталгаажуулалт
 //    POST /webhook           — Facebook Messenger эвент (үйлчлүүлэгчийн AI)
-//    POST /admin/telegram    — Telegram webhook (Admin AI)
+//    GET  /webhook-artist    — Facebook webhook баталгаажуулалт (артистын хуудас)
+//    POST /webhook-artist    — Facebook Messenger эвент (артистын AI)
+//    POST /admin/telegram    — Telegram webhook (Admin AI; зураг → Cloudinary)
 //    GET  /cron/reminders    — Vercel Cron → сануулга илгээх
 // ─────────────────────────────────────────────────────────────
 
@@ -17,9 +19,12 @@ import { resolveReferral, buildGreeting } from "./customer/greeting.js";
 import { presentMainServices, presentOneService } from "./customer/present.js";
 import { handleCustomerMessage, seedGreeting, setReferredService, isNewConversation } from "./customer/customerAgent.js";
 import { handleAdminMessage, isAllowedAdmin } from "./admin/adminAgent.js";
+import { handleArtistMessage } from "./artist/artistAgent.js";
 import { sendTelegram } from "./admin/telegramSend.js";
+import { getTelegramFileUrl } from "./admin/telegramFile.js";
+import { uploadServiceImage, isCloudinaryConfigured } from "./media/cloudinary.js";
 import { answerQuestion, parseQid } from "./escalation.js";
-import { sendText } from "./messenger/sendApi.js";
+import { sendText, sendArtistText } from "./messenger/sendApi.js";
 import { runReminders } from "./reminders/reminders.js";
 
 warnMissingConfig();
@@ -132,18 +137,56 @@ async function handleMessagingEvent(event) {
   }
 }
 
+// ───────── Facebook webhook баталгаажуулалт (АРТИСТын хуудас) ─────────
+app.get("/webhook-artist", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+  if (mode === "subscribe" && token === config.artistFbVerifyToken) {
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
+});
+
+// ───────── Facebook Messenger эвент (АРТИСТ) ─────────
+app.post("/webhook-artist", async (req, res) => {
+  const body = req.body;
+  if (body.object !== "page") return res.sendStatus(404);
+
+  // ⚠️ Vercel дээр хариу буцаахаас ӨМНӨ боловсруулна.
+  for (const entry of body.entry || []) {
+    for (const event of entry.messaging || []) {
+      try {
+        const psid = event.sender?.id;
+        const text = event.message?.text;
+        if (!psid || !text) continue;
+        const reply = await handleArtistMessage({ psid, text });
+        await sendArtistText(psid, reply);
+      } catch (err) {
+        console.error("[webhook-artist] эвент боловсруулах алдаа:", err);
+      }
+    }
+  }
+
+  res.sendStatus(200);
+});
+
 // ───────── Telegram webhook (Admin AI) ─────────
 app.post("/admin/telegram", async (req, res) => {
   const update = req.body;
   const msg = update.message || update.edited_message;
   const chatId = msg?.chat?.id;
   const text = msg?.text;
-  if (!chatId || !text) return res.sendStatus(200);
+  const photo = msg?.photo; // Telegram PhotoSize[] (сүүлийнх нь хамгийн том)
+  if (!chatId || (!text && !(photo && photo.length))) return res.sendStatus(200);
 
   // ⚠️ Vercel дээр хариу буцаахаас ӨМНӨ боловсруулна (функц царцахаас сэргийлж).
   try {
     if (!isAllowedAdmin(chatId)) {
       await sendTelegram(chatId, "Уучлаарай, танд энэ ботыг ашиглах эрх алга.");
+    } else if (photo && photo.length) {
+      // Зураг ирлээ → Cloudinary руу жижигрүүлж байршуулаад, URL-ийг Admin AI-д дамжуулна.
+      await handleAdminPhoto(chatId, msg, photo);
     } else {
       // Асуултын мэдэгдэл рүү Reply хийсэн бол → тухайн асуултад шууд хариулна
       const qid = parseQid(msg.reply_to_message?.text || "");
@@ -168,6 +211,29 @@ app.post("/admin/telegram", async (req, res) => {
 
   res.sendStatus(200);
 });
+
+/** Админаас ирсэн зургийг Cloudinary-д байршуулаад Admin AI-д URL-ийг дамжуулах. */
+async function handleAdminPhoto(chatId, msg, photo) {
+  if (!isCloudinaryConfigured()) {
+    await sendTelegram(chatId, "Зураг байршуулахын тулд Cloudinary тохиргоо (CLOUDINARY_URL) хэрэгтэй.");
+    return;
+  }
+  const fileId = photo[photo.length - 1].file_id; // хамгийн өндөр нягтралтай
+  const fileUrl = await getTelegramFileUrl(fileId);
+  const up = fileUrl ? await uploadServiceImage(fileUrl) : { ok: false };
+
+  if (!up.ok) {
+    await sendTelegram(chatId, "Зураг байршуулж чадсангүй. Дахин оролдоно уу.");
+    return;
+  }
+
+  const caption = msg.caption ? `Зурагтай хамт бичсэн тайлбар: "${msg.caption}". ` : "";
+  const note =
+    `[Админ зураг илгээж, Cloudinary-д амжилттай байршлаа. ${caption}` +
+    `Энэ зургийн URL-ийг тохирох үйлчилгээний image талбарт хэрэглэ (create_service/update_service): ${up.url}]`;
+  const reply = await handleAdminMessage({ adminId: chatId, text: note });
+  await sendTelegram(chatId, reply);
+}
 
 // ───────── Cron: сануулга илгээх ─────────
 app.get("/cron/reminders", async (req, res) => {

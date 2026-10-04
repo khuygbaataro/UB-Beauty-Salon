@@ -23,6 +23,19 @@ export const config = {
   fbPageAccessToken: process.env.FB_PAGE_ACCESS_TOKEN || "",
   fbAppSecret: process.env.FB_APP_SECRET || "",
 
+  // --- Facebook Messenger (АРТИСТын AI — тусдаа хуудас) ---
+  // Артистуудад зориулсан тусдаа Facebook Page-ийн токен/verify. Тохируулаагүй бол
+  // (dev) үйлчлүүлэгчийн хуудасныхыг түр ашиглана.
+  artistPageAccessToken: process.env.ARTIST_PAGE_ACCESS_TOKEN || "",
+  artistFbVerifyToken: process.env.ARTIST_FB_VERIFY_TOKEN || process.env.FB_VERIFY_TOKEN || "",
+
+  // --- Cloudinary (зураг байршуулах) ---
+  // CLOUDINARY_URL (cloudinary://key:secret@cloud) эсвэл тус тусад нь өгч болно.
+  cloudinaryUrl: process.env.CLOUDINARY_URL || "",
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
+  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY || "",
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || "",
+
   // --- Admin AI (ажилчдын суваг) ---
   adminChannel: process.env.ADMIN_CHANNEL || "telegram", // telegram | messenger
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
@@ -44,7 +57,7 @@ export const config = {
   // --- Захиалга / цуцлах бодлого ---
   // Цаг цуцлахдаа хэдэн цагийн өмнө мэдэгдэх нь зүйтэй (зөөлөн сануулга)
   cancelNoticeHours: Number(process.env.CANCEL_NOTICE_HOURS || 4),
-  reminderLeadHours: Number(process.env.REMINDER_LEAD_HOURS || 24),
+  reminderLeadHours: Number(process.env.REMINDER_LEAD_HOURS || 2),
 
   // --- Cron ---
   cronSecret: process.env.CRON_SECRET || "",

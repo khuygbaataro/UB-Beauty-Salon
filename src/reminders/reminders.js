@@ -29,9 +29,10 @@ export function isDueForReminder(booking, now = new Date()) {
 }
 
 function buildReminderText(booking) {
+  const leadHours = booking.reminderLeadHours ?? config.reminderLeadHours;
   return (
     `⏰ Сануулга — ${config.salonName}\n\n` +
-    `Таны «${booking.serviceName}» үйлчилгээний цаг ойртож байна:\n` +
+    `${leadHours} цагийн дараа таны «${booking.serviceName}» үйлчилгээний цаг ирнэ шүү:\n` +
     `• Огноо: ${booking.date}\n` +
     `• Цаг: ${booking.time}\n\n` +
     `Уулзахаа тэсэн ядан хүлээж байна 🌸 Хэрэв ирэх боломжгүй бол эртнээс мэдэгдээрэй.`

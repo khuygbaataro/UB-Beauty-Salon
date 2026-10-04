@@ -13,6 +13,8 @@ import { config } from "../config.js";
 import { repository } from "../db/repository.js";
 import { formatMnt } from "../customer/greeting.js";
 import { isValidSlot, isSlotAvailable } from "./schedule.js";
+import { artistsForService, pickArtist } from "./assignment.js";
+import { sendArtistText } from "../messenger/sendApi.js";
 
 /** Монгол утасны дугаар эсэхийг шалгах (8 оронтой, 6/7/8/9-өөр эхэлнэ). */
 export function isValidPhone(phone) {
@@ -49,6 +51,10 @@ export async function createBooking(p) {
   const service = await repository.getService(p.serviceId);
   if (!service) throw new Error("Сонгосон үйлчилгээ олдсонгүй.");
 
+  // Артист оноох: тухайн үйлчилгээг хийдэг, тэр цагт сул, хамгийн бага
+  // ачаалалтай артистыг автоматаар сонгоно.
+  let assigned = null;
+
   // Слот шалгах (admin override=true үед алгасна)
   if (!p.override) {
     if (!isValidSlot(p.time)) {
@@ -56,9 +62,21 @@ export async function createBooking(p) {
         `Сонгосон цаг ажиллах цагийн гадна байна. Бид ${config.salonOpenHour}:00–${config.salonCloseHour}:00 цагт ажилладаг.`,
       );
     }
-    if (!(await isSlotAvailable(p.date, p.time))) {
+
+    const artists = await artistsForService(service.id);
+    if (artists.length) {
+      // Артистаар ажиллаж байгаа — сул артист сонгоно.
+      assigned = await pickArtist(service.id, p.date, p.time);
+      if (!assigned) {
+        throw new Error("Энэ цагт сул артист алга байна. Өөр цаг сонгоно уу.");
+      }
+    } else if (!(await isSlotAvailable(p.date, p.time))) {
+      // Энэ үйлчилгээнд артист бүртгэгдээгүй — хуучин салон түвшний (нэг суудал) шалгалт.
       throw new Error("Энэ цаг аль хэдийн захиалагдсан байна. Өөр цаг сонгоно уу.");
     }
+  } else if (p.artistId) {
+    // Admin гараар оруулахдаа тодорхой артист зааж болно.
+    assigned = await repository.getArtist(p.artistId);
   }
 
   // Үнэ/урьдчилгаа (одоогоор урьдчилгаагүй тул prepayment=null)
@@ -77,6 +95,8 @@ export async function createBooking(p) {
     serviceName: service.name,
     variantId: p.variantId || null,
     variantName: variant?.name || null,
+    artistId: assigned?.id || null,
+    artistName: assigned?.name || null,
     date: p.date,
     time: p.time,
     startsAt,
@@ -87,7 +107,25 @@ export async function createBooking(p) {
     status: config.prepaymentEnabled ? "pending" : "confirmed",
   });
 
-  return { booking, service, variant };
+  // Оноогдсон артист руу шинэ захиалгын мэдэгдэл илгээх.
+  if (assigned?.psid) {
+    await notifyArtistOfBooking(assigned, booking).catch((err) =>
+      console.error("[booking] артист мэдэгдэл алдаа:", err),
+    );
+  }
+
+  return { booking, service, variant, artist: assigned };
+}
+
+/** Оноогдсон артист руу шинэ захиалгын мэдэгдэл илгээх. */
+async function notifyArtistOfBooking(artist, booking) {
+  const text =
+    `🆕 Шинэ захиалга — ${artist.name}\n\n` +
+    `• Үйлчилгээ: ${booking.serviceName}${booking.variantName ? ` (${booking.variantName})` : ""}\n` +
+    `• Огноо: ${booking.date}\n` +
+    `• Цаг: ${booking.time}\n` +
+    `• Үйлчлүүлэгчийн утас: ${booking.phone}`;
+  return sendArtistText(artist.psid, text, "MESSAGE_TAG");
 }
 
 /** Захиалга баталгаажсан (урьдчилгаа төлсөн) гэж тэмдэглэх. */
@@ -108,6 +146,7 @@ export function bookingSummary(booking) {
     `• Цаг: ${booking.time}`,
     `• Утас: ${booking.phone}`,
   ];
+  if (booking.artistName) lines.push(`• Артист: ${booking.artistName}`);
   if (booking.price != null) lines.push(`• Үнэ: ${formatMnt(booking.price)}`);
   if (booking.prepayment != null) lines.push(`• Урьдчилгаа: ${formatMnt(booking.prepayment)}`);
   return lines.join("\n");
