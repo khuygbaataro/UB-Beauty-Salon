@@ -4,8 +4,9 @@ export const config = {
   // --- AI ---
   // Anthropic (Admin AI-д хэрэглэнэ)
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
-  aiModel: process.env.AI_MODEL || "claude-opus-5", // нийтлэг Claude fallback
-  adminModel: process.env.ADMIN_MODEL || process.env.AI_MODEL || "claude-opus-5",
+  aiModel: process.env.AI_MODEL || "claude-sonnet-5-5", // нийтлэг Claude fallback
+  // Admin AI + Артист AI (хоёулаа) — default Sonnet 5.5
+  adminModel: process.env.ADMIN_MODEL || process.env.AI_MODEL || "claude-sonnet-5-5",
 
   // --- Redis хадгалалт (Upstash / Vercel KV) ---
   redisUrl: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || "",
