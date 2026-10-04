@@ -7,6 +7,7 @@
 //   • Контентоос ирсэн бол тэр нэг үйлчилгээг картаар.
 // ─────────────────────────────────────────────────────────────
 
+import { config } from "../config.js";
 import { repository } from "../db/repository.js";
 import { sendText, sendServiceCard } from "../messenger/sendApi.js";
 
@@ -15,7 +16,11 @@ export async function presentMainServices(psid) {
   const services = await repository.listServices({ activeOnly: true });
   const menu = services.map((s) => `• ${s.name}`).join("\n");
 
-  await sendText(psid, `Сайн байна уу 🌸 Юу сонирхож байна вэ?\n${menu}`);
+  await sendText(
+    psid,
+    `Сайн байна уу 🌸 ${config.salonName}-ны чатботод тавтай морилно уу.\n` +
+      `Манайд дараах үйлчилгээнүүд байгаа, та алийг нь сонирхож байна вэ?\n\n${menu}`,
+  );
 
   return services.map((s) => s.name);
 }
