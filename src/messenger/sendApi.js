@@ -4,8 +4,9 @@ import { config } from "../config.js";
 
 const GRAPH_URL = "https://graph.facebook.com/v21.0/me/messages";
 
-/** Дотоод: өгсөн page токеноор текст мессеж илгээх. */
-async function postText(token, psid, text, messagingType) {
+/** Дотоод: өгсөн page токеноор текст мессеж илгээх.
+ *  tag өгвөл (жишээ CONFIRMED_EVENT_UPDATE) 24 цагийн цонхны ГАДНА ч илгээнэ. */
+async function postText(token, psid, text, messagingType, tag) {
   if (!token) {
     console.warn("[messenger] Page токен алга — мессеж илгээгдсэнгүй:", text);
     return { ok: false, skipped: true };
@@ -16,6 +17,8 @@ async function postText(token, psid, text, messagingType) {
     recipient: { id: psid },
     message: { text },
   };
+  // MESSAGE_TAG үед Facebook яг аль tag болохыг ЗААВАЛ шаарддаг.
+  if (tag) body.tag = tag;
 
   try {
     const res = await fetch(`${GRAPH_URL}?access_token=${token}`, {
@@ -40,18 +43,19 @@ async function postText(token, psid, text, messagingType) {
  * @param {string} psid — хүлээн авагчийн Page-Scoped ID
  * @param {string} text — мессежийн текст
  * @param {string} [messagingType] — RESPONSE (default) | MESSAGE_TAG | UPDATE
+ * @param {string} [tag] — MESSAGE_TAG үеийн tag (жишээ CONFIRMED_EVENT_UPDATE)
  */
-export async function sendText(psid, text, messagingType = "RESPONSE") {
-  return postText(config.fbPageAccessToken, psid, text, messagingType);
+export async function sendText(psid, text, messagingType = "RESPONSE", tag) {
+  return postText(config.fbPageAccessToken, psid, text, messagingType, tag);
 }
 
 /**
  * Messenger-ээр АРТИСТ руу текст мессеж илгээх (артистын тусдаа хуудас).
  * Артистын токен тохируулаагүй бол (dev) үйлчлүүлэгчийн хуудасныхыг түр ашиглана.
  */
-export async function sendArtistText(psid, text, messagingType = "RESPONSE") {
+export async function sendArtistText(psid, text, messagingType = "RESPONSE", tag) {
   const token = config.artistPageAccessToken || config.fbPageAccessToken;
-  return postText(token, psid, text, messagingType);
+  return postText(token, psid, text, messagingType, tag);
 }
 
 /**

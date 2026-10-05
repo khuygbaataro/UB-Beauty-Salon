@@ -52,7 +52,13 @@ export async function runReminders(now = new Date()) {
     if (!isDueForReminder(booking, now)) continue;
     if (!booking.psid) continue; // Messenger-ээр хариу өгөх ID байхгүй бол алгасна
 
-    const result = await sendText(booking.psid, buildReminderText(booking), "MESSAGE_TAG");
+    // CONFIRMED_EVENT_UPDATE: баталгаажсан захиалгын сануулгыг 24 цагийн гадна ч илгээнэ.
+    const result = await sendText(
+      booking.psid,
+      buildReminderText(booking),
+      "MESSAGE_TAG",
+      "CONFIRMED_EVENT_UPDATE",
+    );
     if (result.ok || result.skipped) {
       await repository.updateBooking(booking.id, {
         status: "reminded",
