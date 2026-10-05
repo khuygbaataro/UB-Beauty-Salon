@@ -18,6 +18,7 @@ import { createBooking, confirmBooking } from "../booking/booking.js";
 import { answerQuestion } from "../escalation.js";
 import { createArtistInvite } from "../artist/registration.js";
 import { sendArtistText } from "../messenger/sendApi.js";
+import { syncScheduleSafe, syncScheduleToSheet, isSheetsConfigured } from "../sheets/googleSheets.js";
 
 const adminConversations = new Map(); // adminId -> messages[]  (TODO: DB)
 const MAX_HISTORY = 20;
@@ -163,6 +164,11 @@ const tools = [
     input_schema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
+    name: "sync_schedule_sheet",
+    description: "Артистуудын ажиллах хуваарийг Google Sheet руу гараар шинэчлэх (ихэвчлэн автоматаар шинэчлэгддэг).",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
     name: "decide_timeoff",
     description:
       "Артистын амралтын хүсэлтийг батлах эсвэл татгалзах. Батлавал тухайн өдрүүд артистын амралтанд нэмэгдэж, артист руу мэдэгдэнэ.",
@@ -210,6 +216,8 @@ function buildSystemPrompt() {
     `• АМРАЛТЫН ЗӨВШӨӨРӨЛ: Артист 3-аас дээш хоног амрах хүсэлт гаргавал энд мэдэгдэл ирнэ. ` +
     `"амралтын хүсэлтүүд" гэвэл list_timeoff_requests-ээр хараад, decide_timeoff-оор батал (approve=true) ` +
     `эсвэл татгалз (approve=false). Шийдвэр автоматаар артист руу очно.\n` +
+    `• ХУВААРИЙН GOOGLE SHEET: Артистуудын ажиллах хуваарь өөрчлөгдөх бүрт Google Sheet автоматаар ` +
+    `шинэчлэгддэг. "хуваарь шинэчил/гарга" гэвэл sync_schedule_sheet-ээр гараар шинэчилж болно.\n` +
     `• Үйлдэл бүрийн дараа юу өөрчлөгдсөнийг товч баталгаажуулж хэл.`
   );
 }
@@ -278,6 +286,7 @@ async function runTool(name, input) {
     case "create_artist": {
       const { valid, invalid } = await resolveServiceIds(input.serviceIds || []);
       const { artist, code } = await createArtistInvite({ ...input, serviceIds: valid.map((v) => v.id) });
+      await syncScheduleSafe();
       return {
         ok: true,
         artistId: artist.id,
@@ -311,11 +320,17 @@ async function runTool(name, input) {
       }
       const updated = await repository.updateArtist(artistId, patch);
       if (!updated) return { ok: false, error: "Артист олдсонгүй." };
+      await syncScheduleSafe();
       return {
         ok: true,
         artist: { id: updated.id, name: updated.name, role: updated.role, serviceIds: updated.serviceIds, active: updated.active },
         invalidServiceIds: invalid,
       };
+    }
+    case "sync_schedule_sheet": {
+      if (!isSheetsConfigured()) return { ok: false, error: "Google Sheet тохируулаагүй байна." };
+      const r = await syncScheduleToSheet();
+      return r.ok ? { ok: true, rows: r.rows, note: "Хуваарь Google Sheet-д шинэчлэгдлээ." } : { ok: false, error: r.error };
     }
     case "list_timeoff_requests": {
       const reqs = await repository.listTimeOffRequests({ status: "pending" });
@@ -346,6 +361,7 @@ async function runTool(name, input) {
           }
         }
         await repository.updateTimeOffRequest(req.id, { status: "approved", decidedAt: nowIso });
+        await syncScheduleSafe();
         return { ok: true, decision: "approved", artist: req.artistName, dates: req.dates };
       } else {
         const artist = await repository.getArtist(req.artistId);

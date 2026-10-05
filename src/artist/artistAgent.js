@@ -24,6 +24,7 @@ import {
 } from "../booking/schedule.js";
 import { createArtistInvite, claimArtistByCode, extractCode } from "./registration.js";
 import { notifyAdmins } from "../admin/telegramSend.js";
+import { syncScheduleSafe } from "../sheets/googleSheets.js";
 
 const artistConversations = new Map(); // psid -> messages[]  (TODO: DB)
 const MAX_HISTORY = 20;
@@ -226,6 +227,7 @@ async function runTool(name, input, ctx) {
       const weeklySchedule = { ...(me.weeklySchedule || {}) };
       for (const d of input.days) weeklySchedule[d] = { start: input.start, end: input.end };
       const updated = await repository.updateArtist(artist.id, { weeklySchedule });
+      await syncScheduleSafe();
       return { ok: true, schedule: scheduleText(updated) };
     }
     case "clear_working_day": {
@@ -233,6 +235,7 @@ async function runTool(name, input, ctx) {
       const weeklySchedule = { ...(me.weeklySchedule || {}) };
       for (const d of input.days) delete weeklySchedule[d];
       const updated = await repository.updateArtist(artist.id, { weeklySchedule });
+      await syncScheduleSafe();
       return { ok: true, schedule: scheduleText(updated) };
     }
     case "request_time_off": {
@@ -248,6 +251,7 @@ async function runTool(name, input, ctx) {
         const me = await repository.getArtist(artist.id);
         const timeOff = [...new Set([...(me.timeOff || []), ...dates])];
         await repository.updateArtist(artist.id, { timeOff });
+        await syncScheduleSafe();
         return { ok: true, approved: true, dates, note: `${dates.length} хоног амралт шууд батлагдлаа.` };
       }
 
@@ -275,6 +279,7 @@ async function runTool(name, input, ctx) {
       const me = await repository.getArtist(artist.id);
       const timeOff = (me.timeOff || []).filter((d) => d !== input.date);
       await repository.updateArtist(artist.id, { timeOff });
+      await syncScheduleSafe();
       return { ok: true, timeOff };
     }
     case "list_my_bookings": {

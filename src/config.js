@@ -30,6 +30,11 @@ export const config = {
   artistPageAccessToken: process.env.ARTIST_PAGE_ACCESS_TOKEN || "",
   artistFbVerifyToken: process.env.ARTIST_FB_VERIFY_TOKEN || process.env.FB_VERIFY_TOKEN || "",
 
+  // --- Google Sheets (артистын хуваарь харуулах) ---
+  googleServiceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "",
+  googlePrivateKey: process.env.GOOGLE_PRIVATE_KEY || "",
+  googleSheetId: process.env.GOOGLE_SHEET_ID || "",
+
   // --- Cloudinary (зураг байршуулах) ---
   // CLOUDINARY_URL (cloudinary://key:secret@cloud) эсвэл тус тусад нь өгч болно.
   cloudinaryUrl: process.env.CLOUDINARY_URL || "",
