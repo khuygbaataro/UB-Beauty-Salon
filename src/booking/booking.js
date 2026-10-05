@@ -125,7 +125,8 @@ async function notifyArtistOfBooking(artist, booking) {
     `• Огноо: ${booking.date}\n` +
     `• Цаг: ${booking.time}\n` +
     `• Үйлчлүүлэгчийн утас: ${booking.phone}`;
-  return sendArtistText(artist.psid, text, "MESSAGE_TAG", "CONFIRMED_EVENT_UPDATE");
+  // UPDATE: 24 цагийн дотор идэвхтэй мессеж (tag/App Review шаардахгүй).
+  return sendArtistText(artist.psid, text, "UPDATE");
 }
 
 /** Захиалга баталгаажсан (урьдчилгаа төлсөн) гэж тэмдэглэх. */
