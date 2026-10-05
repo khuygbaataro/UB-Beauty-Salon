@@ -8,10 +8,7 @@
 
 import { google } from "googleapis";
 import { config } from "../config.js";
-import { repository } from "../db/repository.js";
-
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-const DAY_LABEL = { mon: "Да", tue: "Мя", wed: "Лх", thu: "Пү", fri: "Ба", sat: "Бя", sun: "Ня" };
+import { buildWeekData, weekSheetValues } from "../schedule/weekView.js";
 
 /** Google Sheets тохируулагдсан эсэх. */
 export function isSheetsConfigured() {
@@ -33,40 +30,10 @@ function ubNow() {
   return ub.toISOString().slice(0, 16).replace("T", " ");
 }
 
-/** Артистуудын хуваарийг хүснэгтийн мөрүүд болгон бэлдэх. */
+/** Энэ долоо хоногийн хуваарийг хүснэгтийн мөрүүд болгон бэлдэх. */
 async function buildValues() {
-  const [artists, services] = await Promise.all([
-    repository.listArtists({}),
-    repository.listServices({ activeOnly: false }),
-  ]);
-  const nameById = new Map(services.map((s) => [s.id, s.name]));
-
-  const header = [
-    "Артист",
-    "Эрх",
-    ...DAY_KEYS.map((d) => DAY_LABEL[d]),
-    "Амралтын өдрүүд",
-    "Хийдэг үйлчилгээ",
-    "Идэвхтэй",
-  ];
-
-  const rows = artists
-    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
-    .map((a) => {
-      const sched = a.weeklySchedule || {};
-      const dayCells = DAY_KEYS.map((d) => (sched[d]?.start ? `${sched[d].start}–${sched[d].end}` : "—"));
-      const svc = (a.serviceIds || []).map((id) => nameById.get(id) || id).join(", ") || "—";
-      return [
-        a.name || "—",
-        a.role === "manager" ? "Менежер" : "Артист",
-        ...dayCells,
-        (a.timeOff || []).join(", ") || "—",
-        svc,
-        a.active ? "Тийм" : "Үгүй",
-      ];
-    });
-
-  return [[`Артистын ажиллах хуваарь — шинэчилсэн: ${ubNow()}`], header, ...rows];
+  const data = await buildWeekData();
+  return weekSheetValues(data, ubNow());
 }
 
 /** Эхний хуудсыг (gid) бага зэрэг гоёх: толгой мөр тод, хөлдөөх. Алдвал чимээгүй алгасна. */

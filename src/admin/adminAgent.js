@@ -19,6 +19,8 @@ import { answerQuestion } from "../escalation.js";
 import { createArtistInvite } from "../artist/registration.js";
 import { sendArtistText } from "../messenger/sendApi.js";
 import { syncScheduleSafe, syncScheduleToSheet, isSheetsConfigured } from "../sheets/googleSheets.js";
+import { sendTelegram } from "./telegramSend.js";
+import { buildWeekData, weekTelegramText } from "../schedule/weekView.js";
 
 const adminConversations = new Map(); // adminId -> messages[]  (TODO: DB)
 const MAX_HISTORY = 20;
@@ -169,6 +171,13 @@ const tools = [
     input_schema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
+    name: "show_week_schedule",
+    description:
+      "Энэ долоо хоногт ажиллах артистуудын хуваарийг цэвэрхэн хүснэгтээр Telegram-д илгээх. " +
+      "'энэ долоо хоног', 'хэн ажиллаж байна', '7 хоногийн хуваарь' гэх мэт асуувал дууд.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
     name: "decide_timeoff",
     description:
       "Артистын амралтын хүсэлтийг батлах эсвэл татгалзах. Батлавал тухайн өдрүүд артистын амралтанд нэмэгдэж, артист руу мэдэгдэнэ.",
@@ -218,6 +227,8 @@ function buildSystemPrompt() {
     `эсвэл татгалз (approve=false). Шийдвэр автоматаар артист руу очно.\n` +
     `• ХУВААРИЙН GOOGLE SHEET: Артистуудын ажиллах хуваарь өөрчлөгдөх бүрт Google Sheet автоматаар ` +
     `шинэчлэгддэг. "хуваарь шинэчил/гарга" гэвэл sync_schedule_sheet-ээр гараар шинэчилж болно.\n` +
+    `• ЭНЭ ДОЛОО ХОНОГИЙН ХУВААРЬ: "энэ долоо хоног", "хэн ажиллаж байна", "7 хоногийн хуваарь" гэвэл ` +
+    `show_week_schedule-ийг дууд — энэ нь цэвэрхэн хүснэгтийг шууд илгээнэ. Чи дараа нь зүгээр "илгээлээ" гэж товч хэл.\n` +
     `• Үйлдэл бүрийн дараа юу өөрчлөгдсөнийг товч баталгаажуулж хэл.`
   );
 }
@@ -235,7 +246,12 @@ async function resolveServiceIds(ids = []) {
   return { valid, invalid };
 }
 
-async function runTool(name, input) {
+/** Telegram HTML-д зориулж тусгай тэмдэгтийг escape хийх. */
+function escHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function runTool(name, input, ctx = {}) {
   switch (name) {
     case "list_services": {
       const services = await repository.listServices({ activeOnly: false });
@@ -332,6 +348,15 @@ async function runTool(name, input) {
       const r = await syncScheduleToSheet();
       return r.ok ? { ok: true, rows: r.rows, note: "Хуваарь Google Sheet-д шинэчлэгдлээ." } : { ok: false, error: r.error };
     }
+    case "show_week_schedule": {
+      const data = await buildWeekData();
+      const text = weekTelegramText(data);
+      // Монопэйс хүснэгтээр шууд Telegram-д илгээнэ (AI дахин бичихгүй).
+      if (ctx.adminId) {
+        await sendTelegram(ctx.adminId, `<pre>${escHtml(text)}</pre>`, "HTML").catch(() => {});
+      }
+      return { ok: true, sent: true, artists: data.artists.length, note: "Хуваарийг хүснэгтээр илгээлээ." };
+    }
     case "list_timeoff_requests": {
       const reqs = await repository.listTimeOffRequests({ status: "pending" });
       return reqs.map((r) => ({
@@ -408,7 +433,7 @@ export async function handleAdminMessage({ adminId, text }) {
     for (const tu of toolUses) {
       let output;
       try {
-        output = await runTool(tu.name, tu.input);
+        output = await runTool(tu.name, tu.input, { adminId });
       } catch (err) {
         output = { ok: false, error: String(err.message || err) };
       }

@@ -37,6 +37,16 @@ export function ubDate(offsetDays = 0) {
   return ub.toISOString().slice(0, 10);
 }
 
+/** Тухайн долоо хоногийн (Даваагаар эхэлсэн) 7 огноо. offsetWeeks=1 → дараа 7 хоног. */
+export function weekDates(offsetWeeks = 0) {
+  const base = ubDate(offsetWeeks * 7);
+  const d = new Date(`${base}T12:00:00+08:00`);
+  const dow = d.getUTCDay(); // 0=Ня ... 6=Бя
+  const diffToMon = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(d.getTime() + diffToMon * 24 * 60 * 60 * 1000);
+  return dateRange(monday.toISOString().slice(0, 10), 7);
+}
+
 /** startDate-аас эхлэн дараалсан N хоногийн огноонуудыг буцаах. */
 export function dateRange(startDate, days) {
   const out = [];

@@ -2,19 +2,21 @@
 
 import { config } from "../config.js";
 
-/** Нэг chat руу текст илгээх. */
-export async function sendTelegram(chatId, text) {
+/** Нэг chat руу текст илгээх. parseMode: "HTML" | "MarkdownV2" (заавал биш). */
+export async function sendTelegram(chatId, text, parseMode) {
   if (!config.telegramBotToken) {
     console.warn("[telegram] TELEGRAM_BOT_TOKEN алга — илгээгдсэнгүй:", text);
     return { ok: false, skipped: true };
   }
   try {
+    const payload = { chat_id: chatId, text };
+    if (parseMode) payload.parse_mode = parseMode;
     const res = await fetch(
       `https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text }),
+        body: JSON.stringify(payload),
       },
     );
     if (!res.ok) {
