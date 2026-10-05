@@ -25,6 +25,12 @@ import {
 import { createArtistInvite, claimArtistByCode, extractCode } from "./registration.js";
 import { notifyAdmins } from "../admin/telegramSend.js";
 import { syncScheduleSafe } from "../sheets/googleSheets.js";
+import { buildWeekData, weekTelegramText } from "../schedule/weekView.js";
+
+/** Telegram HTML escape. */
+function escHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 const artistConversations = new Map(); // psid -> messages[]  (TODO: DB)
 const MAX_HISTORY = 20;
@@ -261,12 +267,18 @@ async function runTool(name, input, ctx) {
         artistName: artist.name,
         dates,
       });
-      await notifyAdmins(
-        `🏖️ Амралтын хүсэлт\n\n` +
-          `Артист: ${artist.name}\n` +
-          `Өдрүүд (${dates.length}): ${dates.join(", ")}\n\n` +
-          `Зөвшөөрөхийн тулд Admin AI-д "амралтын хүсэлтүүд" гэж бичээд батал эсвэл татгалз.\n🆔 ${req.id}`,
-      );
+
+      // Админд: энэ долоо хоногийн хуваарь + хүсэлт + зөвшөөрөл асуух (HTML)
+      const weekTable = weekTelegramText(await buildWeekData());
+      const msg =
+        `🏖️ <b>Амралтын хүсэлт</b>\n\n` +
+        `<b>${escHtml(artist.name)}</b> артист <b>${dates.length} хоног</b> амрахыг хүсэж байна:\n` +
+        `${escHtml(dates.join(", "))}\n\n` +
+        `📅 Энэ долоо хоногийн хуваарь:\n<pre>${escHtml(weekTable)}</pre>\n` +
+        `Зөвшөөрөх үү? Admin AI-д «батал ${req.id}» эсвэл «татгалз ${req.id}» гэж бичнэ үү.\n` +
+        `🆔 ${req.id}`;
+      await notifyAdmins(msg, "HTML");
+
       return {
         ok: true,
         approved: false,

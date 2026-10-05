@@ -30,13 +30,13 @@ export async function sendTelegram(chatId, text, parseMode) {
   }
 }
 
-/** Бүх зөвшөөрөгдсөн ажилчид руу мэдэгдэл илгээх. */
-export async function notifyAdmins(text) {
+/** Бүх зөвшөөрөгдсөн ажилчид руу мэдэгдэл илгээх. parseMode заавал биш. */
+export async function notifyAdmins(text, parseMode) {
   const ids = config.adminAllowedIds;
   if (!ids.length) {
     console.warn("[telegram] ADMIN_ALLOWED_IDS хоосон — мэдэгдэл хэнд ч очсонгүй:", text);
     return { ok: false, skipped: true };
   }
-  const results = await Promise.all(ids.map((id) => sendTelegram(id, text)));
+  const results = await Promise.all(ids.map((id) => sendTelegram(id, text, parseMode)));
   return { ok: results.some((r) => r.ok), results };
 }
