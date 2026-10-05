@@ -37,6 +37,18 @@ export function ubDate(offsetDays = 0) {
   return ub.toISOString().slice(0, 10);
 }
 
+/** startDate-аас эхлэн дараалсан N хоногийн огноонуудыг буцаах. */
+export function dateRange(startDate, days) {
+  const out = [];
+  const base = new Date(`${startDate}T12:00:00+08:00`);
+  const n = Math.max(1, Number(days) || 1);
+  for (let i = 0; i < n; i++) {
+    const d = new Date(base.getTime() + i * 24 * 60 * 60 * 1000);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
 /** Тухайн өдрийн БҮХ боломжит слотыг (сул эсэхээс үл хамаарч) үүсгэх. */
 export function generateDaySlots() {
   const slots = [];

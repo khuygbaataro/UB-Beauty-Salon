@@ -17,6 +17,7 @@ import { createMessage, extractText, extractToolUses } from "../ai/anthropic.js"
 import { createBooking, confirmBooking } from "../booking/booking.js";
 import { answerQuestion } from "../escalation.js";
 import { createArtistInvite } from "../artist/registration.js";
+import { sendArtistText } from "../messenger/sendApi.js";
 
 const adminConversations = new Map(); // adminId -> messages[]  (TODO: DB)
 const MAX_HISTORY = 20;
@@ -156,6 +157,25 @@ const tools = [
       additionalProperties: false,
     },
   },
+  {
+    name: "list_timeoff_requests",
+    description: "Артистуудын зөвшөөрөл хүлээж буй (pending) амралтын хүсэлтүүдийг харах.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "decide_timeoff",
+    description:
+      "Артистын амралтын хүсэлтийг батлах эсвэл татгалзах. Батлавал тухайн өдрүүд артистын амралтанд нэмэгдэж, артист руу мэдэгдэнэ.",
+    input_schema: {
+      type: "object",
+      properties: {
+        requestId: { type: "string", description: "Хүсэлтийн id (tor_...)" },
+        approve: { type: "boolean", description: "true=батлах, false=татгалзах" },
+      },
+      required: ["requestId", "approve"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 function buildSystemPrompt() {
@@ -187,6 +207,9 @@ function buildSystemPrompt() {
     `Хүн артистын Facebook хуудас руу кодоо илгээхэд бүртгэл идэвхжиж, дараа нь өөрөө хуваараа тохируулна. ` +
     `Артистын хийдэг үйлчилгээг өөрчлөхдөө update_artist-ийн serviceIds-г ашигла. ` +
     `list_artists-ээр бүгдийг жагсаана. (invalidServiceIds буцвал тэр id буруу — засаж дахин оролд.)\n` +
+    `• АМРАЛТЫН ЗӨВШӨӨРӨЛ: Артист 3-аас дээш хоног амрах хүсэлт гаргавал энд мэдэгдэл ирнэ. ` +
+    `"амралтын хүсэлтүүд" гэвэл list_timeoff_requests-ээр хараад, decide_timeoff-оор батал (approve=true) ` +
+    `эсвэл татгалз (approve=false). Шийдвэр автоматаар артист руу очно.\n` +
     `• Үйлдэл бүрийн дараа юу өөрчлөгдсөнийг товч баталгаажуулж хэл.`
   );
 }
@@ -293,6 +316,48 @@ async function runTool(name, input) {
         artist: { id: updated.id, name: updated.name, role: updated.role, serviceIds: updated.serviceIds, active: updated.active },
         invalidServiceIds: invalid,
       };
+    }
+    case "list_timeoff_requests": {
+      const reqs = await repository.listTimeOffRequests({ status: "pending" });
+      return reqs.map((r) => ({
+        id: r.id,
+        artist: r.artistName,
+        days: r.dates?.length || 0,
+        dates: r.dates,
+        createdAt: r.createdAt,
+      }));
+    }
+    case "decide_timeoff": {
+      const req = await repository.getTimeOffRequest(input.requestId);
+      if (!req) return { ok: false, error: "Хүсэлт олдсонгүй." };
+      if (req.status !== "pending") return { ok: false, error: "Энэ хүсэлт аль хэдийн шийдэгдсэн." };
+
+      const nowIso = new Date().toISOString();
+      if (input.approve) {
+        const artist = await repository.getArtist(req.artistId);
+        if (artist) {
+          const timeOff = [...new Set([...(artist.timeOff || []), ...req.dates])];
+          await repository.updateArtist(artist.id, { timeOff });
+          if (artist.psid) {
+            await sendArtistText(
+              artist.psid,
+              `✅ Таны амралтын хүсэлт зөвшөөрөгдлөө:\n${req.dates.join(", ")}`,
+            ).catch(() => {});
+          }
+        }
+        await repository.updateTimeOffRequest(req.id, { status: "approved", decidedAt: nowIso });
+        return { ok: true, decision: "approved", artist: req.artistName, dates: req.dates };
+      } else {
+        const artist = await repository.getArtist(req.artistId);
+        if (artist?.psid) {
+          await sendArtistText(
+            artist.psid,
+            `❌ Таны амралтын хүсэлт (${req.dates.join(", ")}) татгалзагдлаа. Дэлгэрэнгүйг менежерээс тодруулна уу.`,
+          ).catch(() => {});
+        }
+        await repository.updateTimeOffRequest(req.id, { status: "rejected", decidedAt: nowIso });
+        return { ok: true, decision: "rejected", artist: req.artistName, dates: req.dates };
+      }
     }
     default:
       return { ok: false, error: `Үл мэдэгдэх tool: ${name}` };

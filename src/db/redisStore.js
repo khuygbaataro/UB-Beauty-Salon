@@ -8,6 +8,7 @@
 //    hash  svc        — үйлчилгээ (id -> object)
 //    hash  bk         — захиалга
 //    hash  art        — артистууд (хуваарьтай ажилтан)
+//    hash  tor        — артистын амралтын хүсэлт (зөвшөөрөл)
 //    hash  q          — escalation асуултууд
 //    hash  kb         — мэдлэгийн сан (Q&A)
 //    str   conv:<psid>— ярианы түүх (JSON array), TTL
@@ -154,6 +155,36 @@ export function createRedisStore() {
       if (!cur) return null;
       const upd = { ...cur, ...patch, id };
       await redis.hset("art", { [id]: upd });
+      return upd;
+    },
+
+    // ───────── Амралтын хүсэлт (timeOffRequests) ─────────
+    async createTimeOffRequest(data) {
+      const req = {
+        id: genId("tor"),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        decidedAt: null,
+        decidedBy: null,
+        ...data,
+      };
+      await redis.hset("tor", { [req.id]: req });
+      return req;
+    },
+    async getTimeOffRequest(id) {
+      return (await redis.hget("tor", id)) || null;
+    },
+    async listTimeOffRequests(filter = {}) {
+      let arr = valuesOf(await redis.hgetall("tor"));
+      if (filter.status) arr = arr.filter((r) => r.status === filter.status);
+      if (filter.artistId) arr = arr.filter((r) => r.artistId === filter.artistId);
+      return arr;
+    },
+    async updateTimeOffRequest(id, patch) {
+      const cur = await redis.hget("tor", id);
+      if (!cur) return null;
+      const upd = { ...cur, ...patch, id };
+      await redis.hset("tor", { [id]: upd });
       return upd;
     },
 

@@ -23,6 +23,7 @@ export function createJsonStore() {
   const services = clone(seedServices);
   const bookings = [];
   const artists = []; // артистууд (хуваарьтай ажилтан)
+  const timeOffRequests = []; // артистын амралтын хүсэлт (зөвшөөрөл шаардсан)
   const questions = []; // escalation: ажилтанд дамжуулсан асуултууд
   const knowledge = []; // мэдлэгийн сан: хариулагдсан Q&A
   const conversations = new Map(); // psid -> messages[]
@@ -144,6 +145,36 @@ export function createJsonStore() {
       if (i === -1) return null;
       artists[i] = { ...artists[i], ...patch, id };
       return clone(artists[i]);
+    },
+
+    // ───────── Амралтын хүсэлт (timeOffRequests) ─────────
+    async createTimeOffRequest(data) {
+      const req = {
+        id: genId("tor"),
+        status: "pending", // pending | approved | rejected
+        createdAt: new Date().toISOString(),
+        decidedAt: null,
+        decidedBy: null,
+        ...data,
+      };
+      timeOffRequests.push(req);
+      return clone(req);
+    },
+    async getTimeOffRequest(id) {
+      const r = timeOffRequests.find((x) => x.id === id);
+      return r ? clone(r) : null;
+    },
+    async listTimeOffRequests(filter = {}) {
+      let result = timeOffRequests;
+      if (filter.status) result = result.filter((r) => r.status === filter.status);
+      if (filter.artistId) result = result.filter((r) => r.artistId === filter.artistId);
+      return result.map(clone);
+    },
+    async updateTimeOffRequest(id, patch) {
+      const i = timeOffRequests.findIndex((x) => x.id === id);
+      if (i === -1) return null;
+      timeOffRequests[i] = { ...timeOffRequests[i], ...patch, id };
+      return clone(timeOffRequests[i]);
     },
 
     // ───────── Escalation асуултууд (questions) ─────────

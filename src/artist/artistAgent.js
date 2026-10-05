@@ -20,8 +20,10 @@ import {
   artistAvailableSlots,
   ubDate,
   dayKeyOf,
+  dateRange,
 } from "../booking/schedule.js";
 import { createArtistInvite, claimArtistByCode, extractCode } from "./registration.js";
+import { notifyAdmins } from "../admin/telegramSend.js";
 
 const artistConversations = new Map(); // psid -> messages[]  (TODO: DB)
 const MAX_HISTORY = 20;
@@ -72,12 +74,17 @@ const PERSONAL_TOOLS = [
     },
   },
   {
-    name: "set_day_off",
-    description: "Тодорхой нэг өдөр амрах (захиалга авахгүй). Огноо YYYY-MM-DD.",
+    name: "request_time_off",
+    description:
+      "Амралт авах хүсэлт (нэг буюу хэд хэдэн өдөр). dates (жагсаалт) ЭСВЭЛ startDate+days-ээр өг. " +
+      "1–3 хоног бол шууд батлагдана. 3-аас ДЭЭШ хоног бол үндсэн админы зөвшөөрөл шаардана.",
     input_schema: {
       type: "object",
-      properties: { date: { type: "string", description: "YYYY-MM-DD" } },
-      required: ["date"],
+      properties: {
+        dates: { type: "array", items: { type: "string" }, description: "YYYY-MM-DD өдрүүд" },
+        startDate: { type: "string", description: "Эхлэх өдөр YYYY-MM-DD" },
+        days: { type: "number", description: "startDate-аас хэдэн хоног дараалан" },
+      },
       additionalProperties: false,
     },
   },
@@ -182,7 +189,9 @@ function buildSystemPrompt(artist) {
     `• Ажиллах цаг: "Да–Ба 10–18" гэх мэт хэлвэл set_working_hours-оор хадгал. Гаригийг mon,tue,wed,` +
     `thu,fri,sat,sun болгон хөрвүүл (Да=mon, Мя=tue, Лх=wed, Пү=thu, Ба=fri, Бя=sat, Ня=sun). ` +
     `Цагийг HH:mm (жишээ "10"→"10:00").\n` +
-    `• "Маргааш амарна" → set_day_off-д маргаашийн огноог тооц.\n` +
+    `• Амралт: "маргааш амарна", "10–14-нд амарна", "дараа 7 хоног амарна" гэвэл request_time_off ` +
+    `ашигла (dates эсвэл startDate+days). 1–3 хоног ШУУД батлагдана; 3-аас ДЭЭШ хоног бол үндсэн ` +
+    `админы зөвшөөрөл шаардагдах тул "зөвшөөрөл хүлээж байна" гэдгийг эелдэг хэл.\n` +
     `• Захиалга асуувал list_my_bookings-оор хараад товч жагсаа.\n` +
     (isManager
       ? `• Менежер "бүх артист", "өнөөдөр хэн ачаалалтай вэ", "шинэ артист нэм/код үүсгэ" гэвэл ` +
@@ -226,11 +235,41 @@ async function runTool(name, input, ctx) {
       const updated = await repository.updateArtist(artist.id, { weeklySchedule });
       return { ok: true, schedule: scheduleText(updated) };
     }
-    case "set_day_off": {
-      const me = await repository.getArtist(artist.id);
-      const timeOff = Array.from(new Set([...(me.timeOff || []), input.date]));
-      await repository.updateArtist(artist.id, { timeOff });
-      return { ok: true, timeOff };
+    case "request_time_off": {
+      // Огноонуудыг цуглуулах: dates эсвэл startDate+days
+      let dates = Array.isArray(input.dates) ? input.dates.slice() : [];
+      if (input.startDate && input.days) dates = dateRange(input.startDate, input.days);
+      else if (input.startDate && !dates.length) dates = [input.startDate];
+      dates = [...new Set(dates)].sort();
+      if (!dates.length) return { ok: false, error: "Амрах өдрөө тодорхой хэлнэ үү." };
+
+      // 1–3 хоног → шууд батлагдана
+      if (dates.length <= config.maxSelfDayOff) {
+        const me = await repository.getArtist(artist.id);
+        const timeOff = [...new Set([...(me.timeOff || []), ...dates])];
+        await repository.updateArtist(artist.id, { timeOff });
+        return { ok: true, approved: true, dates, note: `${dates.length} хоног амралт шууд батлагдлаа.` };
+      }
+
+      // 3-аас дээш → үндсэн админы зөвшөөрөл
+      const req = await repository.createTimeOffRequest({
+        artistId: artist.id,
+        artistName: artist.name,
+        dates,
+      });
+      await notifyAdmins(
+        `🏖️ Амралтын хүсэлт\n\n` +
+          `Артист: ${artist.name}\n` +
+          `Өдрүүд (${dates.length}): ${dates.join(", ")}\n\n` +
+          `Зөвшөөрөхийн тулд Admin AI-д "амралтын хүсэлтүүд" гэж бичээд батал эсвэл татгалз.\n🆔 ${req.id}`,
+      );
+      return {
+        ok: true,
+        approved: false,
+        pending: true,
+        dates,
+        note: `${dates.length} хоног (3-аас дээш) тул үндсэн админы зөвшөөрөл хүлээж байна. Шийдэгдмэгц мэдэгдэнэ.`,
+      };
     }
     case "clear_day_off": {
       const me = await repository.getArtist(artist.id);

@@ -52,6 +52,9 @@ export const config = {
   priorityStartHour: Number(process.env.PRIORITY_START_HOUR || 10), // эхэлж санал болгох цонх
   priorityEndHour: Number(process.env.PRIORITY_END_HOUR || 13), // (10:00–13:00)
 
+  // Артист өөрөө зөвшөөрөлгүй авч болох амралтын дээд хоног (үүнээс дээш → админ зөвшөөрнө)
+  maxSelfDayOff: Number(process.env.MAX_SELF_DAYOFF || 3),
+
   // --- Төлбөр ---
   prepaymentEnabled: (process.env.PREPAYMENT_ENABLED || "false") === "true", // одоогоор урьдчилгаагүй
 

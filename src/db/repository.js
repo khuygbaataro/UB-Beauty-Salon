@@ -82,6 +82,12 @@ export const repository = {
   listArtists: (filter) => getStore().listArtists(filter),
   updateArtist: (id, patch) => getStore().updateArtist(id, patch),
 
+  // Амралтын хүсэлт (зөвшөөрөл шаардсан)
+  createTimeOffRequest: (data) => getStore().createTimeOffRequest(data),
+  getTimeOffRequest: (id) => getStore().getTimeOffRequest(id),
+  listTimeOffRequests: (filter) => getStore().listTimeOffRequests(filter),
+  updateTimeOffRequest: (id, patch) => getStore().updateTimeOffRequest(id, patch),
+
   // Escalation questions
   createQuestion: (data) => getStore().createQuestion(data),
   getQuestion: (id) => getStore().getQuestion(id),
