@@ -8,7 +8,7 @@
 //     мөр солиход хангалттай байхаар зохион байгуулсан.
 // ─────────────────────────────────────────────────────────────
 
-import { seedServices } from "../data/services.js";
+import { seedServices, serviceRank } from "../data/services.js";
 
 function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
@@ -34,7 +34,10 @@ export function createJsonStore() {
 
     // ───────── Үйлчилгээ (services) ─────────
     async listServices({ activeOnly = true } = {}) {
-      return services.filter((s) => (activeOnly ? s.active : true)).map(clone);
+      return services
+        .filter((s) => (activeOnly ? s.active : true))
+        .map(clone)
+        .sort((a, b) => serviceRank(a) - serviceRank(b) || String(a.name).localeCompare(String(b.name)));
     },
 
     async getService(id) {

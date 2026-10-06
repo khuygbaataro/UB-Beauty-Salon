@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { Redis } from "@upstash/redis";
-import { seedServices } from "../data/services.js";
+import { seedServices, serviceRank } from "../data/services.js";
 import { config } from "../config.js";
 
 const CONV_TTL = 60 * 60 * 24 * 14; // 14 хоног
@@ -52,7 +52,9 @@ export function createRedisStore() {
     async listServices({ activeOnly = true } = {}) {
       await ensureSeeded();
       const arr = valuesOf(await redis.hgetall("svc"));
-      return arr.filter((s) => (activeOnly ? s.active : true));
+      return arr
+        .filter((s) => (activeOnly ? s.active : true))
+        .sort((a, b) => serviceRank(a) - serviceRank(b) || String(a.name).localeCompare(String(b.name)));
     },
     async getService(id) {
       await ensureSeeded();

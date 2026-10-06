@@ -20,6 +20,21 @@
 //  ⚠️ GREEN PEEL ба La Vie-ийн үнэ одоогоор null (дараа Admin AI-аар оруулна).
 // ─────────────────────────────────────────────────────────────
 
+// Хэрэглэгчид харуулах ТОГТМОЛ дараалал (id → эрэмбэ). Бичигдээгүй id сүүлд (900).
+export const SERVICE_ORDER = {
+  "men-power-package": 1, // Эрэгтэйчүүдийн багц
+  "green-peel": 2,
+  "la-vie-lifting": 3,
+  "laser-hair-removal": 4,
+  "lash-extension": 5, // Сормуус — хамгийн сүүлд
+};
+
+/** Үйлчилгээний эрэмбэ: sortOrder байвал түүнийг, эс бол SERVICE_ORDER, эс бол 900. */
+export function serviceRank(s) {
+  if (typeof s?.sortOrder === "number") return s.sortOrder;
+  return SERVICE_ORDER[s?.id] ?? 900;
+}
+
 export const seedServices = [
   {
     id: "green-peel",
