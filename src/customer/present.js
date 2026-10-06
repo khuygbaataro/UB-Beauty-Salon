@@ -18,8 +18,9 @@ export async function presentMainServices(psid) {
 
   await sendText(
     psid,
-    `Сайн байна уу 🌸 ${config.salonName}-ны чатботод тавтай морилно уу.\n` +
-      `Манайд дараах үйлчилгээнүүд байгаа, та алийг нь сонирхож байна вэ?\n\n${menu}`,
+    `Сайн байна уу?\n\n` +
+      `${config.salonName}-ны чатботод тавтай морилно уу.\n\n` +
+      `Ямар үйлчилгээний талаар дэлгэрэнгүй мэдээлэл авахыг хүсэж байна вэ?\n\n${menu}`,
   );
 
   return services.map((s) => s.name);

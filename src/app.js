@@ -110,7 +110,12 @@ async function handleMessagingEvent(event) {
       await presentOneService(psid, service);
       const greeting = buildGreeting(service);
       await sendText(psid, greeting);
-      await seedGreeting(psid, `[«${service.name}» үйлчилгээг зурагтайгаар танилцууллаа]`);
+      await seedGreeting(
+        psid,
+        `[Контентоос ирсэн: «${service.name}»-г зурагтайгаар танилцуулж, товч тайлбар өгөөд ` +
+          `"сонирхож байна уу?" гэж асуулаа. Хэрэглэгч тийм гэвэл УРСГАЛЫН дагуу үнэ (+ promo байвал 🎁) ` +
+          `хэлээд "цаг захиалах уу?" гэж асуу. Богино бич.]`,
+      );
     } else {
       // Контент тодорхойгүй / Get Started → НЭГ богино мессежээр үйлчилгээний цэс
       const names = await presentMainServices(psid);

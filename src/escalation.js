@@ -64,7 +64,7 @@ export async function answerQuestion(questionId, answer, answeredBy = null) {
   if (q.psid) {
     await sendText(
       q.psid,
-      `Таны асуултын хариу ирлээ 🌸\n\n❓ ${q.question}\n\n💬 ${answer}`,
+      `Таны асуултын хариу ирлээ.\n\n❓ ${q.question}\n\n💬 ${answer}`,
     );
   }
 
