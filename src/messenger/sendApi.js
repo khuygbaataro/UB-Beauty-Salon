@@ -58,16 +58,29 @@ export async function sendArtistText(psid, text, messagingType = "RESPONSE", tag
   return postText(token, psid, text, messagingType, tag);
 }
 
+/** Картын дэд гарчиг — ҮНЭ болон чимэглэлийн emoji-гүй, цэвэрхэн богино тайлбар.
+ *  (Үнийг зөвхөн funnel-ийн 5-р алхамд хэлнэ — картан дээр давхардуулахгүй.) */
+function cardSubtitle(service) {
+  let s = service.subtitle || service.description || service.tagline || "";
+  s = s
+    .replace(/[\d.,\s]*₮/g, "") // "68,000₮" гэх мэт үнэ хасах
+    .replace(/[—–-]\s*$/g, "") // үлдсэн "—" хасах
+    .replace(/[🌸✨💫🌿🎁🌷🌼]/g, "") // чимэглэлийн emoji хасах
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return s.slice(0, 80);
+}
+
 /**
  * Нэг үйлчилгээг зурагт карт (generic template)-аар илгээх = 1 chat.
  * Зураг (service.image) байхгүй бол текстээр (нэр + товч) илгээнэ.
  */
 export async function sendServiceCard(psid, service) {
-  const subtitle = (service.tagline || service.description || "").slice(0, 80);
+  const subtitle = cardSubtitle(service);
 
-  // Зураггүй бол текст fallback
+  // Зураггүй бол текст fallback (цэцэггүй, үнэгүй)
   if (!service.image) {
-    return sendText(psid, `🌸 ${service.name}\n${service.tagline || subtitle}`);
+    return sendText(psid, subtitle ? `${service.name}\n${subtitle}` : service.name);
   }
 
   if (!config.fbPageAccessToken) {
@@ -104,8 +117,8 @@ export async function sendServiceCard(psid, service) {
     if (!res.ok) {
       const errText = await res.text();
       console.error("[messenger] Карт илгээх алдаа:", res.status, errText);
-      // зураг алдаатай бол текстээр нөхөж илгээе
-      return sendText(psid, `🌸 ${service.name}\n${service.tagline || subtitle}`);
+      // зураг алдаатай бол текстээр нөхөж илгээе (цэцэггүй, үнэгүй)
+      return sendText(psid, subtitle ? `${service.name}\n${subtitle}` : service.name);
     }
     return { ok: true };
   } catch (err) {
