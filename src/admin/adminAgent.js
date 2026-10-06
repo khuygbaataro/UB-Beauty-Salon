@@ -76,6 +76,18 @@ const tools = [
     },
   },
   {
+    name: "delete_service",
+    description:
+      "Үйлчилгээг БҮРМӨСӨН устгах (list_services-ийн id-аар). Буцаахгүй тул устгахын өмнө баталгаажуул. " +
+      "Түр нуух бол delete биш, update_service-ийн active=false-ийг ашигла.",
+    input_schema: {
+      type: "object",
+      properties: { serviceId: { type: "string", description: "Үйлчилгээний id" } },
+      required: ["serviceId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "add_booking",
     description:
       "Гараар цаг захиалга бүртгэх (утсаар/биечлэн ирсэн). confirmed=true бол баталгаажсан гэж тэмдэглэнэ.",
@@ -303,8 +315,11 @@ function buildSystemPrompt() {
     `Ажилтны хэлсэн нэрсийг тохирох id болгон хөрвүүлж create_artist-ийн serviceIds-д ОЛОН id өг ` +
     `(нэг артист хэд хэдэн үйлчилгээ хийж болно). Шаардлагатай үйлчилгээ санд байхгүй бол эхлээд ` +
     `create_service-ээр нэм. Бүртгэсний дараа сонгогдсон үйлчилгээг НЭРЭЭР нь болон 6 оронтой КОДыг ` +
-    `тодорхой баталгаажуулж хэл — тэр кодыг тухайн хүнд дамжуулахыг сануул. ` +
-    `Хүн артистын Facebook хуудас руу кодоо илгээхэд бүртгэл идэвхжиж, дараа нь өөрөө хуваараа тохируулна. ` +
+    `тодорхой баталгаажуулж хэл.\n` +
+    `• ҮЙЛЧИЛГЭЭ устгах/нуух: БҮРМӨСӨН устгах бол delete_service (устгахын өмнө заавал баталгаажуул, ` +
+    `буцаахгүй). Түр нуух/идэвхгүй болгох бол update_service-ийн active=false (устгахгүй, дараа эргүүлж асааж болно). ` +
+    `Нэмсэн/засварласан үйлчилгээ хэрэглэгчийн ботод шууд харагдана.\n` +
+    `• Код өгсний дараа: хүн артистын Facebook хуудас руу кодоо илгээхэд бүртгэл идэвхжиж, өөрөө хуваараа тохируулна. ` +
     `Артистын хийдэг үйлчилгээг өөрчлөхдөө update_artist-ийн serviceIds-г ашигла. ` +
     `list_artists-ээр бүгдийг жагсаана. (invalidServiceIds буцвал тэр id буруу — засаж дахин оролд.)\n` +
     `• АМРАЛТЫН ЗӨВШӨӨРӨЛ: Артист 3-аас дээш хоног амрах хүсэл гаргавал энд долоо хоногийн хуваарь, ` +
@@ -368,6 +383,12 @@ async function runTool(name, input, ctx = {}) {
     case "create_service": {
       const svc = await repository.createService(input);
       return { ok: true, service: svc };
+    }
+    case "delete_service": {
+      const svc = await repository.getService(input.serviceId);
+      if (!svc) return { ok: false, error: "Үйлчилгээ олдсонгүй." };
+      await repository.deleteService(input.serviceId);
+      return { ok: true, deleted: svc.name, note: "Үйлчилгээ устгагдлаа." };
     }
     case "add_booking": {
       // override:true — ажилтан гараар оруулах тул слот шалгалтыг алгасна
