@@ -181,9 +181,10 @@ async function buildSystemPrompt(psid) {
     `price/variants) + promo байвал 🎁-тэй хамт танилцуул. ⚠️ "Цаг захиалах уу?" гэж БҮҮ асуу — ` +
     `шууд дараагийн алхам руу шилж.\n` +
     `6) ХЭЗЭЭ ИРЭХ: Үнэ хэлсэн мөрөндөө "Та хэзээ ирж үйлчлүүлэх боломжтой вэ?" гэж асуу.\n` +
-    `7) ЦАГ ИДЭВХТЭЙ САНАЛ БОЛГОХ: Өдрийг мэдмэгц check_availability-ээр (serviceId-тай) сул цаг аваад, ` +
-    `тодорхой цагийг ИДЭВХТЭЙ санал болго: "[Өдөр] [цаг]-д танд санал болгож байна, тохирох уу?". ` +
-    `Эхэнд өглөөний (10:00–13:00) цагийг санал болго.\n` +
+    `7) ЦАГ ИДЭВХТЭЙ САНАЛ БОЛГОХ: Өдрийг мэдмэгц check_availability-ээр (serviceId-тай) сул цаг ав. ` +
+    `Хэрэглэгч ТОДОРХОЙ цаг нэрлэвэл (жишээ "17:00") — тэр цаг 'available' жагсаалтад байвал ТЭР цагийг ` +
+    `зөвшөөрч захиал. Байхгүй бол л өөр цаг санал болго. Хэрэглэгч цаг нэрлээгүй бол 'suggested'-ээс ` +
+    `(өглөө 10:00–13:00 эхэндээ) идэвхтэй санал болго: "[Өдөр] [цаг]-д танд санал болгож байна, тохирох уу?".\n` +
     `8) ЗАХИАЛАХ (ХУРДАН): Хэрэглэгч тохирно гэмэгц, утсаа (8 оронтой) өгмөгц ТҮРГЭН create_booking дууд. ` +
     `Шаардлагагүй нэмэлт асуулт бүү тавь — хурдан баталгаажуул.\n` +
     `9) БАТАЛГААЖУУЛАЛТ: Амжилттай бол яг ийм маягаар хэл (үйлчилгээний нэрийг тохируулж):\n` +
@@ -235,19 +236,20 @@ async function runTool(name, input, ctx) {
     case "check_availability": {
       // Үйлчилгээг хийдэг артист бүртгэлтэй бол артистын сул цагаар тооцно,
       // эс бол (артист байхгүй/үйлчилгээ зааж өгөөгүй) хуучин салон түвшний цагаар.
-      let ordered, morning, later;
+      let all, ordered;
       const artists = input.serviceId ? await artistsForService(input.serviceId) : [];
       if (input.serviceId && artists.length) {
-        ({ ordered, morning, later } = await suggestServiceSlots(input.serviceId, input.date));
+        ({ all, ordered } = await suggestServiceSlots(input.serviceId, input.date));
       } else {
-        ({ ordered, morning, later } = await suggestSlots(input.date));
+        ({ all, ordered } = await suggestSlots(input.date));
       }
       return {
         date: input.date,
-        available: ordered, // эрэмбэлсэн (өглөө эхэндээ)
-        morning, // 10:00–13:00 сул цаг
-        later, // үлдсэн сул цаг
-        note: ordered.length ? "Өглөөний цагийг эхэлж санал болго." : "Энэ өдөр сул цаг алга.",
+        available: all, // ⬅ тухайн өдрийн БҮХ сул цаг (тодорхой цаг шалгахад таслагдахгүй)
+        suggested: ordered, // проактив санал болгоход (өглөө эхэндээ)
+        note: all.length
+          ? "Хэрэглэгч тодорхой цаг нэрлэвэл available дотор байгаа эсэхийг шалгаад тэр цагийг зөвшөөр. Эс бол suggested-ээс санал болго."
+          : "Энэ өдөр сул цаг алга.",
       };
     }
     case "create_booking": {

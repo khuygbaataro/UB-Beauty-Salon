@@ -111,7 +111,8 @@ export async function suggestSlots(date, limit = 6) {
 
   // Эхэлж өглөөний цонх, дараа нь үлдсэн — хугацааны дарааллаар
   const ordered = [...morning, ...later].slice(0, limit);
-  return { morning, later, ordered };
+  // all: тухайн өдрийн БҮХ сул цаг (тодорхой цаг шалгахад; таслагдахгүй).
+  return { all: avail, morning, later, ordered };
 }
 
 // ─────────────────────────────────────────────────────────────

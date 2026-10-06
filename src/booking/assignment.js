@@ -59,7 +59,8 @@ export async function suggestServiceSlots(serviceId, date, limit = 6) {
   const morning = times.filter((t) => toMin(t) >= pStart && toMin(t) < pEnd);
   const later = times.filter((t) => toMin(t) < pStart || toMin(t) >= pEnd);
   const ordered = [...morning, ...later].slice(0, limit);
-  return { morning, later, ordered, artistCount };
+  // all: тухайн өдрийн БҮХ сул цаг (тодорхой цаг шалгахад; таслагдахгүй).
+  return { all: times, morning, later, ordered, artistCount };
 }
 
 /**
