@@ -15,6 +15,7 @@ import { config } from "../config.js";
 import { repository } from "../db/repository.js";
 import { createMessage, extractText, extractToolUses } from "../ai/anthropic.js";
 import { createBooking, confirmBooking } from "../booking/booking.js";
+import { cancelBooking } from "../booking/cancellation.js";
 import { answerQuestion } from "../escalation.js";
 import { createArtistInvite } from "../artist/registration.js";
 import { sendArtistText } from "../messenger/sendApi.js";
@@ -120,6 +121,18 @@ const tools = [
         status: { type: "string" },
         phone: { type: "string" },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "cancel_booking",
+    description:
+      "Захиалгыг bookingId-аар цуцлах (цаг сул болно, үйлчлүүлэгч рүү мессеж илгээхгүй). " +
+      "Олон захиалга цуцлах бол бүрийг нь дараалан дууд. ID-г list_bookings-ээс ав.",
+    input_schema: {
+      type: "object",
+      properties: { bookingId: { type: "string", description: "Захиалгын id (bk_...)" } },
+      required: ["bookingId"],
       additionalProperties: false,
     },
   },
@@ -255,6 +268,8 @@ function buildSystemPrompt() {
     `өгнө), эсвэл https:// холбоос хэлж болно, (5) үргэлжлэх хугацаа минутаар. Бүгдийг авсны дараа create_service/` +
     `update_service-ийг дууд, дараа нь оруулсан утгуудыг эргэн баталгаажуулж хэл.\n` +
     `• Захиалга бүртгэхэд утас, үйлчилгээ (list_services-ийн id), огноо, цаг заавал хэрэгтэй.\n` +
+    `• Захиалга ЦУЦЛАХ: list_bookings-ээр олоод, cancel_booking-оор bookingId-аар цуцал. Олныг ` +
+    `дараалан цуцал. Цуцалсан цаг сул болно; үйлчлүүлэгч рүү мессеж илгээхгүй.\n` +
     `• Үйлчлүүлэгчийн асуулт (open questions) ирвэл list_open_questions-ээр хараад answer_question-аар ` +
     `хариул. Хариу автоматаар үйлчлүүлэгч рүү очиж, мэдлэгийн санд хадгалагдана. (Telegram дээр ` +
     `асуултын мэдэгдэл рүү шууд Reply хийж бичсэн ч болно.)\n` +
@@ -345,6 +360,17 @@ async function runTool(name, input, ctx = {}) {
     case "list_open_questions": {
       const qs = await repository.listQuestions({ status: "open" });
       return qs.map((q) => ({ id: q.id, question: q.question, createdAt: q.createdAt }));
+    }
+    case "cancel_booking": {
+      const result = await cancelBooking(input.bookingId);
+      return {
+        ok: true,
+        bookingId: input.bookingId,
+        service: result.booking.serviceName,
+        date: result.booking.date,
+        time: result.booking.time,
+        note: "Захиалга цуцлагдлаа, цаг сул боллоо.",
+      };
     }
     case "list_knowledge": {
       const kb = await repository.listKnowledge();
