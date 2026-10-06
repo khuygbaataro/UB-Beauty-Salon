@@ -205,13 +205,19 @@ const tools = [
     description:
       "Шинэ артист эсвэл менежерийн УРИЛГА үүсгэх. Систем нэг удаагийн 6 оронтой код буцаана — " +
       "тэр кодыг хүнд өг. Тэр хүн артистын Facebook хуудас руу кодоо илгээхэд бүртгэл идэвхжинэ. " +
-      "role='manager' бол хянах/удирдах эрхтэй болно. serviceIds нь хийдэг үйлчилгээний id-ууд (list_services-ээс).",
+      "role: artist=үйлчилгээ хийдэг (serviceIds шаардлагатай), manager=хянах/удирдах, " +
+      "reception=хүлээн авагч (үйлчлүүлэгчтэй харилцаж захиалга бүртгэнэ, үйлчилгээ хийхгүй). " +
+      "manager/reception-д serviceIds ШААРДЛАГАГҮЙ.",
     input_schema: {
       type: "object",
       properties: {
         name: { type: "string" },
-        role: { type: "string", enum: ["artist", "manager"], description: "artist (default) | manager" },
-        serviceIds: { type: "array", items: { type: "string" }, description: "Хийдэг үйлчилгээний id-ууд" },
+        role: {
+          type: "string",
+          enum: ["artist", "manager", "reception"],
+          description: "artist (default) | manager | reception",
+        },
+        serviceIds: { type: "array", items: { type: "string" }, description: "Зөвхөн artist-д: хийдэг үйлчилгээний id-ууд" },
         phone: { type: "string" },
       },
       required: ["name"],
@@ -225,12 +231,15 @@ const tools = [
   },
   {
     name: "update_artist",
-    description: "Артистын мэдээлэл шинэчлэх (нэр, psid, хийдэг үйлчилгээ, идэвхтэй эсэх).",
+    description:
+      "Артист/менежер/ресепшний мэдээлэл шинэчлэх (нэр, role, psid, хийдэг үйлчилгээ, идэвхтэй эсэх). " +
+      "role-ийг засаж болно (жишээ буруу artist болсныг manager болгох).",
     input_schema: {
       type: "object",
       properties: {
         artistId: { type: "string" },
         name: { type: "string" },
+        role: { type: "string", enum: ["artist", "manager", "reception"] },
         psid: { type: "string" },
         serviceIds: { type: "array", items: { type: "string" } },
         active: { type: "boolean" },
@@ -385,12 +394,14 @@ function buildSystemPrompt() {
     `• Үйлчлүүлэгчийн асуулт (open questions) ирвэл list_open_questions-ээр хараад answer_question-аар ` +
     `хариул. Хариу автоматаар үйлчлүүлэгч рүү очиж, мэдлэгийн санд хадгалагдана. (Telegram дээр ` +
     `асуултын мэдэгдэл рүү шууд Reply хийж бичсэн ч болно.)\n` +
-    `• АРТИСТ/МЕНЕЖЕР бүртгэх: Эхлээд list_services-ээр үйлчилгээнүүдийг id-тэй нь харуулж, ` +
-    `тэр артист АЛЬ үйлчилгээнүүдийг хийдгийг ажилтнаас асуу (жишээ: "GREEN PEEL, лазер, сормуус"). ` +
-    `Ажилтны хэлсэн нэрсийг тохирох id болгон хөрвүүлж create_artist-ийн serviceIds-д ОЛОН id өг ` +
-    `(нэг артист хэд хэдэн үйлчилгээ хийж болно). Шаардлагатай үйлчилгээ санд байхгүй бол эхлээд ` +
-    `create_service-ээр нэм. Бүртгэсний дараа сонгогдсон үйлчилгээг НЭРЭЭР нь болон 6 оронтой КОДыг ` +
-    `тодорхой баталгаажуулж хэл.\n` +
+    `• АЖИЛТАН БҮРТГЭХ — 3 ТӨРӨЛ (чухал ялгаа):\n` +
+    `  - artist = ҮЙЛЧИЛГЭЭ хийдэг. serviceIds ЗААВАЛ (list_services-ээс id). Захиалга энд оногдоно, ` +
+    `хуваарьтай. Шаардлагатай үйлчилгээ санд байхгүй бол эхлээд create_service-ээр нэм.\n` +
+    `  - manager = хянах/удирдах. serviceIds ШААРДЛАГАГҮЙ. Үйлчилгээ асуухгүй.\n` +
+    `  - reception = хүлээн авагч (үйлчлүүлэгчтэй харилцаж захиалга бүртгэнэ). serviceIds ШААРДЛАГАГҮЙ.\n` +
+    `  ⚠️ manager/reception-д "үйлчилгээ оноогоогүй" гэж БҮҮ анхааруул — тэд үйлчилгээ хийдэггүй. ` +
+    `Буруу role-оор бүртгэгдсэн бол update_artist-ийн role-оор зөв болго. ` +
+    `Бүртгэсний дараа 6 оронтой КОДыг (+artist бол үйлчилгээг нэрээр нь) тодорхой баталгаажуулж хэл.\n` +
     `• ТУСГАЙ ЗААВАР (notes): Админ "энэ үйлчилгээнд ингэ/ийм зүйл онцол" гэвэл тухайн үйлчилгээний ` +
     `notes талбарт update_service-ээр хадгал. Хэрэглэгч бот тэр үйлчилгээг ярихдаа энэ зааврыг дагана.\n` +
     `• ҮЙЛЧИЛГЭЭ устгах/нуух: БҮРМӨСӨН устгах бол delete_service (устгахын өмнө заавал баталгаажуул, ` +

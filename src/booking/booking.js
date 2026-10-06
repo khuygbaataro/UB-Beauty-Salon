@@ -128,7 +128,7 @@ export async function createBooking(p) {
 /** Менежер бүр рүү шинэ захиалгын мэдэгдэл (бүх захиалга менежерт очно). */
 async function notifyManagersOfBooking(booking, assigned) {
   const managers = (await repository.listArtists({ active: true })).filter(
-    (a) => a.role === "manager" && a.psid,
+    (a) => (a.role === "manager" || a.role === "reception") && a.psid,
   );
   if (!managers.length) return;
   const text =

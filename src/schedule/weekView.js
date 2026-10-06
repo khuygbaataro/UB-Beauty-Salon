@@ -35,6 +35,7 @@ export async function buildWeekData() {
   const nameById = new Map(services.map((s) => [s.id, s.name]));
 
   const list = artists
+    .filter((a) => (a.role || "artist") === "artist") // зөвхөн үйлчилгээ хийдэг артистууд
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))
     .map((a) => ({
       name: a.name || "—",

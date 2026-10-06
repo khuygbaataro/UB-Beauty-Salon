@@ -198,24 +198,29 @@ function resolveWhen(when) {
 
 /** "home" цэс — артист/менежер юу хийж чадахыг товч танилцуулна. */
 function artistHomeText(artist) {
-  const base =
+  const isStaff = artist.role === "manager" || artist.role === "reception";
+  if (isStaff) {
+    // Менежер/хүлээн авагч — үйлчилгээ хийхгүй, захиалга/удирдлагад туслана.
+    return (
+      `Сайн уу, ${artist.name}!\n\n` +
+      `Би дараах зүйлд туслана:\n` +
+      `Захиалга бүртгэх — "99112233 маргааш 14:00 лазер"\n` +
+      `Өнөөдөр хэн ажиллаж байна — "өнөөдөр хэн ажиллаж байна"\n` +
+      `Бүх артист — "артистууд"\n` +
+      `Шинэ артист/код — "код үүсгэ"\n\n` +
+      `Юу хийх вэ?`
+    );
+  }
+  // Артист — өөрийн хуваарь, захиалга.
+  return (
     `Сайн уу, ${artist.name}!\n\n` +
     `Би чамд дараах зүйлд туслана:\n` +
     `Ажлын цаг — "Да–Ба 10–20"\n` +
     `Амрах — "маргааш амарна" / "10–14 амарна"\n` +
     `Захиалга — "өнөөдрийн захиалга"\n` +
-    `Профайл — "миний мэдээлэл"`;
-  if (artist.role === "manager") {
-    return (
-      base +
-      `\n\nМенежер:\n` +
-      `Бүх артист — "артистууд"\n` +
-      `Ачаалал — "өнөөдөр хэн ажиллаж байна"\n` +
-      `Шинэ артист — "код үүсгэ"\n\n` +
-      `Юу хийх вэ?`
-    );
-  }
-  return base + `\n\nЮу хийх вэ?`;
+    `Профайл — "миний мэдээлэл"\n\n` +
+    `Юу хийх вэ?`
+  );
 }
 
 /** Хуваарийг ойлгомжтой текст болгох. */
@@ -228,7 +233,8 @@ function scheduleText(artist) {
 }
 
 function buildSystemPrompt(artist) {
-  const isManager = artist.role === "manager";
+  // Одоохондоо менежер өөрөө ресепшн хийдэг тул хоёуланд ижил эрх.
+  const isManager = artist.role === "manager" || artist.role === "reception";
   const services = (artist.serviceIds || []).join(", ") || "(хуваарилаагүй)";
   const roleLine = isManager
     ? `Энэ хэрэглэгч бол МЕНЕЖЕР — бусад артистыг хянах, шинэ код үүсгэх, артист идэвхгүй болгох эрхтэй. ` +
@@ -262,7 +268,7 @@ function buildSystemPrompt(artist) {
 
 async function runTool(name, input, ctx) {
   const artist = ctx.artist;
-  const isManager = artist.role === "manager";
+  const isManager = artist.role === "manager" || artist.role === "reception";
 
   switch (name) {
     // ───────── Хувийн ─────────
@@ -454,7 +460,8 @@ export async function handleArtistMessage({ psid, text }) {
     if (code) {
       const claimed = await claimArtistByCode(psid, code);
       if (claimed) {
-        const roleWord = claimed.role === "manager" ? "менежер" : "артист";
+        const roleWord =
+          claimed.role === "manager" ? "менежер" : claimed.role === "reception" ? "хүлээн авагч" : "артист";
         return (
           `✅ Тавтай морил, ${claimed.name}! Та ${roleWord}аар амжилттай бүртгэгдлээ 🌸\n\n` +
           `Одоо надад ажиллах цагаа хэлээрэй. Жишээ нь: "Да–Ба 10–18 цагт ажиллана".`
@@ -478,7 +485,8 @@ export async function handleArtistMessage({ psid, text }) {
     return artistHomeText(artist);
   }
 
-  const tools = artist.role === "manager" ? [...PERSONAL_TOOLS, ...MANAGER_TOOLS] : PERSONAL_TOOLS;
+  const isStaff = artist.role === "manager" || artist.role === "reception";
+  const tools = isStaff ? [...PERSONAL_TOOLS, ...MANAGER_TOOLS] : PERSONAL_TOOLS;
   // ⚠️ Хадгалсан түүхийг ХУУЛЖ, эхнээс нь цэвэрлэнэ (reference-ээр эвдэхгүй).
   const history = sanitizeHistory([...(artistConversations.get(psid) || [])]);
   history.push({ role: "user", content: text });

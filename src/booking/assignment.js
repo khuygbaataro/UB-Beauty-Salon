@@ -16,9 +16,10 @@ import {
   artistBookedTimes,
 } from "./schedule.js";
 
-/** Тухайн үйлчилгээг хийдэг идэвхтэй артистууд. */
+/** Тухайн үйлчилгээг хийдэг идэвхтэй АРТИСТУУД (менежер/ресепшн ороохгүй). */
 export async function artistsForService(serviceId) {
-  return repository.listArtists({ active: true, serviceId });
+  const list = await repository.listArtists({ active: true, serviceId });
+  return list.filter((a) => (a.role || "artist") === "artist");
 }
 
 /** Систем артистаар ажиллаж эхэлсэн эсэх (ядаж 1 идэвхтэй артист бүртгэлтэй). */
