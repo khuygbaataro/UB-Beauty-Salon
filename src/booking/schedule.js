@@ -47,6 +47,24 @@ export function weekDates(offsetWeeks = 0) {
   return dateRange(monday.toISOString().slice(0, 10), 7);
 }
 
+/** Улаанбаатарын одоогийн цаг минутаар (00:00-аас хойш). */
+export function ubNowMinutes() {
+  const ub = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  return ub.getUTCHours() * 60 + ub.getUTCMinutes();
+}
+
+/** Улаанбаатарын одоогийн цаг "HH:MM". */
+export function ubClock() {
+  return toHHMM(ubNowMinutes());
+}
+
+/** Хэрэв өгсөн өдөр ӨНӨӨДӨР бол өнгөрсөн (одоо эхэлсэн) цагуудыг хасна. */
+export function filterPastSlots(date, slots) {
+  if (date !== ubDate(0)) return slots;
+  const now = ubNowMinutes();
+  return slots.filter((t) => toMin(t) > now);
+}
+
 /** startDate-аас эхлэн дараалсан N хоногийн огноонуудыг буцаах. */
 export function dateRange(startDate, days) {
   const out = [];
@@ -83,10 +101,10 @@ export async function getBookedTimes(date) {
     .map((b) => b.time);
 }
 
-/** Тухайн өдрийн сул слотууд. */
+/** Тухайн өдрийн сул слотууд (өнөөдөр бол өнгөрсөн цагийг хасна). */
 export async function getAvailableSlots(date) {
   const booked = new Set(await getBookedTimes(date));
-  return generateDaySlots().filter((t) => !booked.has(t));
+  return filterPastSlots(date, generateDaySlots().filter((t) => !booked.has(t)));
 }
 
 /** Тодорхой цаг сул эсэх. */
@@ -146,8 +164,9 @@ export async function artistBookedTimes(artistId, date) {
   return arr.filter((b) => b.status !== "cancelled").map((b) => b.time);
 }
 
-/** Тухайн артистын өгсөн өдрийн сул слотууд. */
+/** Тухайн артистын өгсөн өдрийн сул слотууд (өнөөдөр бол өнгөрсөн цагийг хасна). */
 export async function artistAvailableSlots(artist, date) {
   const booked = new Set(await artistBookedTimes(artist.id, date));
-  return artistDaySlots(artist, date).filter((t) => !booked.has(t));
+  const free = artistDaySlots(artist, date).filter((t) => !booked.has(t));
+  return filterPastSlots(date, free);
 }

@@ -19,7 +19,7 @@ import { createChatCompletion } from "../ai/openai.js";
 import { priceSummary } from "./greeting.js";
 import { createBooking, bookingSummary } from "../booking/booking.js";
 import { cancelBooking, cancellationMessage } from "../booking/cancellation.js";
-import { suggestSlots } from "../booking/schedule.js";
+import { suggestSlots, ubDate, ubClock } from "../booking/schedule.js";
 import { suggestServiceSlots, artistsForService } from "../booking/assignment.js";
 import { presentOneService } from "./present.js";
 import { escalateQuestion, searchKnowledge } from "../escalation.js";
@@ -166,7 +166,12 @@ async function buildSystemPrompt(psid) {
     `Зөвхөн утга бүхий тэмдгийг ховорхон хэрэглэж болно: ✅ (баталгаажуулалт), 🎁 (бэлэг), 💬.\n` +
     `• Урт текст, олон мессеж дараалан БҮҮ явуул — хэрэглэгч залхана.\n\n` +
     `⛔ ЗОХИОЖ БОЛОХГҮЙ: үнэ, сул цаг, бэлэг, бодлого — зөвхөн tool/сангаас ирсэн БОДИТ өгөгдөл. ` +
-    `Таамаглаж, зохиож БОЛОХГҮЙ. Үнэ тодорхойгүй (null) үйлчилгээний үнийг БҮҮ таа.\n\n` +
+    `Таамаглаж, зохиож БОЛОХГҮЙ. Үнэ тодорхойгүй (null) үйлчилгээний үнийг БҮҮ таа.\n` +
+    `⛔ ХАТУУ: Мэдэхгүй, боломжгүй зүйлийг худлаа БҮҮ хэл. check_availability-д bookable:false эсвэл ` +
+    `available хоосон бол — цаг БҮҮ санал болго, захиалга БҮҮ хий. available-д БАЙГАА цагийг л зөвшөөр. ` +
+    `Артист байхгүй үйлчилгээнд цаг өгөхгүй.\n` +
+    `⏰ ОДОО: ${ubDate(0)}, цаг ${ubClock()} (Улаанбаатар). "Хэдэн цаг болж байна" гэвэл үүнийг хэл. ` +
+    `Өнгөрсөн цагийг (одоогийн цагаас өмнө) БҮҮ санал болго — систем автоматаар хасдаг.\n\n` +
     `════ ЗААВАЛ БАРИХ УРСГАЛ (дарааллыг чандлан баримтал) ════\n` +
     `1) МЭНДЧИЛГЭЭ + ЖАГСААЛТ: Хэрэглэгч мэндчилбэл эсвэл "ямар үйлчилгээ байгаа вэ" гэвэл — товчхон ` +
     `"Та ямар үйлчилгээ сонирхож байна вэ?" гэж асуугаад ЯГ ДОР нь үйлчилгээний нэрсийг (зөвхөн нэр, ` +
@@ -237,8 +242,19 @@ async function runTool(name, input, ctx) {
     case "check_availability": {
       // Үйлчилгээг хийдэг артист бүртгэлтэй бол артистын сул цагаар тооцно,
       // эс бол (артист байхгүй/үйлчилгээ зааж өгөөгүй) хуучин салон түвшний цагаар.
-      let all, ordered;
       const artists = input.serviceId ? await artistsForService(input.serviceId) : [];
+      // ⛔ ХАТУУ ДҮРЭМ: үйлчилгээнд артист байхгүй бол цаг БҮҮ санал болго.
+      if (input.serviceId && !artists.length) {
+        return {
+          date: input.date,
+          available: [],
+          suggested: [],
+          bookable: false,
+          note: "Энэ үйлчилгээнд одоогоор артист бүртгэгдээгүй тул цаг захиалах БОЛОМЖГҮЙ. " +
+            "Цаг БҮҮ санал болго. Эелдэгээр боломжгүйг хэлээд escalate_to_staff-аар ажилтанд холбо.",
+        };
+      }
+      let all, ordered;
       if (input.serviceId && artists.length) {
         ({ all, ordered } = await suggestServiceSlots(input.serviceId, input.date));
       } else {
@@ -248,9 +264,10 @@ async function runTool(name, input, ctx) {
         date: input.date,
         available: all, // ⬅ тухайн өдрийн БҮХ сул цаг (тодорхой цаг шалгахад таслагдахгүй)
         suggested: ordered, // проактив санал болгоход (өглөө эхэндээ)
+        bookable: all.length > 0,
         note: all.length
-          ? "Хэрэглэгч тодорхой цаг нэрлэвэл available дотор байгаа эсэхийг шалгаад тэр цагийг зөвшөөр. Эс бол suggested-ээс санал болго."
-          : "Энэ өдөр сул цаг алга.",
+          ? "Хэрэглэгч тодорхой цаг нэрлэвэл available дотор байгаа эсэхийг шалгаад тэр цагийг зөвшөөр. Эс бол suggested-ээс санал болго. available-д БАЙХГҮЙ цагийг БҮҮ зөвшөөр."
+          : "Энэ өдөр сул цаг алга. Цаг БҮҮ санал болго — өөр өдөр санал болго эсвэл ажилтанд холбо.",
       };
     }
     case "create_booking": {

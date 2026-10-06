@@ -12,7 +12,7 @@
 import { config } from "../config.js";
 import { repository } from "../db/repository.js";
 import { formatMnt } from "../customer/greeting.js";
-import { isValidSlot, isSlotAvailable } from "./schedule.js";
+import { isValidSlot } from "./schedule.js";
 import { artistsForService, pickArtist } from "./assignment.js";
 import { sendArtistText } from "../messenger/sendApi.js";
 
@@ -64,15 +64,14 @@ export async function createBooking(p) {
     }
 
     const artists = await artistsForService(service.id);
-    if (artists.length) {
-      // Артистаар ажиллаж байгаа — сул артист сонгоно.
-      assigned = await pickArtist(service.id, p.date, p.time);
-      if (!assigned) {
-        throw new Error("Энэ цагт сул артист алга байна. Өөр цаг сонгоно уу.");
-      }
-    } else if (!(await isSlotAvailable(p.date, p.time))) {
-      // Энэ үйлчилгээнд артист бүртгэгдээгүй — хуучин салон түвшний (нэг суудал) шалгалт.
-      throw new Error("Энэ цаг аль хэдийн захиалагдсан байна. Өөр цаг сонгоно уу.");
+    // ⛔ ХАТУУ ДҮРЭМ: үйлчилгээнд артист байхгүй бол захиалах боломжгүй.
+    if (!artists.length) {
+      throw new Error("Энэ үйлчилгээнд одоогоор артист бүртгэгдээгүй тул цаг захиалах боломжгүй.");
+    }
+    // Сул, хамгийн бага ачаалалтай артистыг сонгоно (өнгөрсөн цаг автоматаар хасагдсан).
+    assigned = await pickArtist(service.id, p.date, p.time);
+    if (!assigned) {
+      throw new Error("Энэ цагт сул артист алга байна. Өөр цаг сонгоно уу.");
     }
   } else if (p.artistId) {
     // Admin гараар оруулахдаа тодорхой артист зааж болно.
