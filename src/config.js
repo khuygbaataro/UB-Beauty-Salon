@@ -79,7 +79,8 @@ export const config = {
   salonName: "UB Beauty Salon",
   salonPhone: process.env.SALON_PHONE || "7777-6062", // холбоо барих утас
   salonLocation:
-    process.env.SALON_LOCATION || "Улаанбаатар дэлгүүрийн зүүн талын 37-р байр", // байршил/хаяг
+    process.env.SALON_LOCATION ||
+    "Улаанбаатар их дэлгүүрийн зүүн тал, UB Town хотхоны 37-р байр", // байршил/хаяг
 };
 
 // Хөгжүүлэлтийн үед дутуу тохиргоог анхааруулах (production дээр алдаа заахгүй, зөвхөн log).
