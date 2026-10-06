@@ -97,6 +97,8 @@ export const repository = {
   // Knowledge base
   addKnowledge: (data) => getStore().addKnowledge(data),
   listKnowledge: () => getStore().listKnowledge(),
+  updateKnowledge: (id, patch) => getStore().updateKnowledge(id, patch),
+  deleteKnowledge: (id) => getStore().deleteKnowledge(id),
 
   // Conversations / referred (хэрэглэгч тус бүр)
   getConversation: (psid) => getStore().getConversation(psid),

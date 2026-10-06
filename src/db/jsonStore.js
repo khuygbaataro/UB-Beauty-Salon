@@ -221,6 +221,20 @@ export function createJsonStore() {
       return knowledge.map(clone);
     },
 
+    async updateKnowledge(id, patch) {
+      const i = knowledge.findIndex((x) => x.id === id);
+      if (i === -1) return null;
+      knowledge[i] = { ...knowledge[i], ...patch, id };
+      return clone(knowledge[i]);
+    },
+
+    async deleteKnowledge(id) {
+      const i = knowledge.findIndex((x) => x.id === id);
+      if (i === -1) return false;
+      knowledge.splice(i, 1);
+      return true;
+    },
+
     // ───────── Ярианы түүх / referred (хэрэглэгч тус бүр) ─────────
     async getConversation(psid) {
       return clone(conversations.get(psid) || []);

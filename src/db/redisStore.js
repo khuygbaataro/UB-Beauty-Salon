@@ -227,6 +227,16 @@ export function createRedisStore() {
     async listKnowledge() {
       return valuesOf(await redis.hgetall("kb"));
     },
+    async updateKnowledge(id, patch) {
+      const cur = await redis.hget("kb", id);
+      if (!cur) return null;
+      const upd = { ...cur, ...patch, id };
+      await redis.hset("kb", { [id]: upd });
+      return upd;
+    },
+    async deleteKnowledge(id) {
+      return (await redis.hdel("kb", id)) > 0;
+    },
 
     // ───────── Conversations / referred ─────────
     async getConversation(psid) {

@@ -124,6 +124,49 @@ const tools = [
     },
   },
   {
+    name: "list_knowledge",
+    description: "Мэдлэгийн сан (хадгалсан асуулт-хариултууд)-г бүгдийг нь харах. Customer AI эдгээрийг хайж хариулдаг.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "add_knowledge",
+    description:
+      "Мэдлэгийн санд асуулт-хариулт ГАРААР нэмэх (FAQ урьдчилан бэлдэх). Customer AI үүнийг хайж олоод үйлчлүүлэгчид шууд хариулна.",
+    input_schema: {
+      type: "object",
+      properties: {
+        question: { type: "string", description: "Асуулт (жишээ: 'Жирэмсэн үед лазер хийж болох уу?')" },
+        answer: { type: "string", description: "Хариулт" },
+      },
+      required: ["question", "answer"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_knowledge",
+    description: "Мэдлэгийн сан дахь нэг бичлэгийн асуулт эсвэл хариултыг засах.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Бичлэгийн id (kb_...)" },
+        question: { type: "string" },
+        answer: { type: "string" },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_knowledge",
+    description: "Мэдлэгийн сан дахь бичлэгийг устгах.",
+    input_schema: {
+      type: "object",
+      properties: { id: { type: "string", description: "Бичлэгийн id (kb_...)" } },
+      required: ["id"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_artist",
     description:
       "Шинэ артист эсвэл менежерийн УРИЛГА үүсгэх. Систем нэг удаагийн 6 оронтой код буцаана — " +
@@ -228,6 +271,10 @@ function buildSystemPrompt() {
     `хүсэлт, 🆔 (tor_...)-тай мэдэгдэл ирнэ. Админ «батал tor_xxx» гэвэл decide_timeoff(requestId=tor_xxx, ` +
     `approve=true), «татгалз tor_xxx» гэвэл approve=false-оор дууд. "амралтын хүсэлтүүд" гэвэл ` +
     `list_timeoff_requests-ээр жагсаа. Шийдвэр автоматаар артист руу (артистын AI-аар) очно.\n` +
+    `• МЭДЛЭГИЙН САН: "мэдлэгийн сан харуул" гэвэл list_knowledge-ээр бүгдийг үзүүл. ` +
+    `Гараар FAQ нэмэх add_knowledge, засах update_knowledge, устгах delete_knowledge. ` +
+    `Энд хадгалсан асуулт-хариултыг Customer AI автоматаар хайж үйлчлүүлэгчид хариулдаг — ` +
+    `тиймээс түгээмэл асуултуудыг урьдчилан нэмж болно.\n` +
     `• ХУВААРИЙН GOOGLE SHEET: Артистуудын ажиллах хуваарь өөрчлөгдөх бүрт Google Sheet автоматаар ` +
     `шинэчлэгддэг. "хуваарь шинэчил/гарга" гэвэл sync_schedule_sheet-ээр гараар шинэчилж болно.\n` +
     `• ЭНЭ ДОЛОО ХОНОГИЙН ХУВААРЬ: "энэ долоо хоног", "хэн ажиллаж байна", "7 хоногийн хуваарь" гэвэл ` +
@@ -298,6 +345,25 @@ async function runTool(name, input, ctx = {}) {
     case "list_open_questions": {
       const qs = await repository.listQuestions({ status: "open" });
       return qs.map((q) => ({ id: q.id, question: q.question, createdAt: q.createdAt }));
+    }
+    case "list_knowledge": {
+      const kb = await repository.listKnowledge();
+      return kb.map((k) => ({ id: k.id, question: k.question, answer: k.answer }));
+    }
+    case "add_knowledge": {
+      const k = await repository.addKnowledge({ question: input.question, answer: input.answer });
+      return { ok: true, id: k.id, note: "Мэдлэгийн санд нэмэгдлээ. Customer AI үүнийг хайж хариулна." };
+    }
+    case "update_knowledge": {
+      const { id, ...patch } = input;
+      const upd = await repository.updateKnowledge(id, patch);
+      return upd
+        ? { ok: true, knowledge: { id: upd.id, question: upd.question, answer: upd.answer } }
+        : { ok: false, error: "Бичлэг олдсонгүй." };
+    }
+    case "delete_knowledge": {
+      const ok = await repository.deleteKnowledge(input.id);
+      return ok ? { ok: true, note: "Устгагдлаа." } : { ok: false, error: "Бичлэг олдсонгүй." };
     }
     case "answer_question": {
       return answerQuestion(input.questionId, input.answer, input.answeredBy);
