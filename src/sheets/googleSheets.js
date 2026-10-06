@@ -1,14 +1,17 @@
 // ─────────────────────────────────────────────────────────────
-//  Google Sheets — артистуудын ажиллах хуваарийг ойлгомжтой хүснэгтээр гаргах.
+//  Google Sheets — 2 таб:
+//   1) Эхний таб: артистуудын 7 хоногийн ажиллах хуваарь
+//   2) "Захиалга" таб: энэ долоо хоногт захиалагдсан цагууд (цаг × өдөр календарь)
 //
-//  Service account-аар баталгаажиж, тохируулсан хуудас (GOOGLE_SHEET_ID) руу
-//  артист бүрийн 7 хоногийн цаг, амралт, хийдэг үйлчилгээг бичнэ.
-//  Хуваарь өөрчлөгдөх бүрт автоматаар шинэчилнэ (тохируулаагүй бол чимээгүй алгасна).
+//  Service account-аар баталгаажиж, GOOGLE_SHEET_ID руу бичнэ.
+//  Хуваарь/захиалга өөрчлөгдөх бүрт автоматаар шинэчилнэ (тохируулаагүй бол алгасна).
 // ─────────────────────────────────────────────────────────────
 
 import { google } from "googleapis";
 import { config } from "../config.js";
-import { buildWeekData, weekSheetValues } from "../schedule/weekView.js";
+import { buildWeekData, weekSheetValues, buildBookingsGrid } from "../schedule/weekView.js";
+
+const BOOKINGS_TAB = "Захиалга";
 
 /** Google Sheets тохируулагдсан эсэх. */
 export function isSheetsConfigured() {
@@ -30,18 +33,31 @@ function ubNow() {
   return ub.toISOString().slice(0, 16).replace("T", " ");
 }
 
-/** Энэ долоо хоногийн хуваарийг хүснэгтийн мөрүүд болгон бэлдэх. */
-async function buildValues() {
-  const data = await buildWeekData();
-  return weekSheetValues(data, ubNow());
+/** Нэртэй таб олох; байхгүй бол үүсгэж sheetId-г буцаах. */
+async function ensureTab(sheets, title, meta) {
+  const m = meta || (await sheets.spreadsheets.get({ spreadsheetId: config.googleSheetId }));
+  const found = m.data.sheets.find((s) => s.properties.title === title);
+  if (found) return found.properties.sheetId;
+  const res = await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: config.googleSheetId,
+    requestBody: { requests: [{ addSheet: { properties: { title } } }] },
+  });
+  return res.data.replies[0].addSheet.properties.sheetId;
 }
 
-/** Эхний хуудсыг (gid) бага зэрэг гоёх: толгой мөр тод, хөлдөөх. Алдвал чимээгүй алгасна. */
-async function tryFormat(sheets) {
-  try {
-    const meta = await sheets.spreadsheets.get({ spreadsheetId: config.googleSheetId });
-    const sheetId = meta.data.sheets?.[0]?.properties?.sheetId ?? 0;
-    await sheets.spreadsheets.batchUpdate({
+/** Нэг табыг цэвэрлэж, утга бичиж, толгой мөр тод + мөр/багана хөлдөөх. */
+async function writeTab(sheets, title, sheetId, values) {
+  const q = `'${title.replace(/'/g, "''")}'!`;
+  await sheets.spreadsheets.values.clear({ spreadsheetId: config.googleSheetId, range: `${q}A1:Z1000` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: config.googleSheetId,
+    range: `${q}A1`,
+    valueInputOption: "RAW",
+    requestBody: { values },
+  });
+  // Гоёл (заавал биш) — толгой мөр (2-р мөр) тод + эхний 2 мөр, 1-р багана хөлдөөх.
+  await sheets.spreadsheets
+    .batchUpdate({
       spreadsheetId: config.googleSheetId,
       requestBody: {
         requests: [
@@ -60,42 +76,43 @@ async function tryFormat(sheets) {
           },
         ],
       },
-    });
-  } catch {
-    /* гоёл заавал биш — алгасна */
-  }
+    })
+    .catch(() => {});
 }
 
 /**
- * Артистуудын хуваарийг Google Sheet руу бичих.
- * @returns {Promise<{ok:boolean, rows?:number, skipped?:boolean, error?:string}>}
+ * Хуваарь (эхний таб) + захиалга ("Захиалга" таб)-г Google Sheet руу бичих.
+ * @returns {Promise<{ok:boolean, rows?:number, bookings?:number, skipped?:boolean, error?:string}>}
  */
 export async function syncScheduleToSheet() {
   if (!isSheetsConfigured()) return { ok: false, skipped: true };
   try {
     const sheets = getSheetsClient();
-    const values = await buildValues();
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: config.googleSheetId });
+    const first = meta.data.sheets[0].properties;
 
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: config.googleSheetId,
-      range: "A1:Z1000",
-    });
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: config.googleSheetId,
-      range: "A1",
-      valueInputOption: "RAW",
-      requestBody: { values },
-    });
-    await tryFormat(sheets);
+    // 1) Хуваарь → эхний таб
+    const schedValues = weekSheetValues(await buildWeekData(), ubNow());
+    await writeTab(sheets, first.title, first.sheetId, schedValues);
 
-    return { ok: true, rows: values.length - 2 };
+    // 2) Захиалга → "Захиалга" таб
+    const bk = await buildBookingsGrid();
+    const bkValues = [
+      [`Энэ долоо хоногийн захиалга: ${bk.title} — шинэчилсэн ${ubNow()}`],
+      bk.header,
+      ...bk.rows,
+    ];
+    const bkId = await ensureTab(sheets, BOOKINGS_TAB, meta);
+    await writeTab(sheets, BOOKINGS_TAB, bkId, bkValues);
+
+    return { ok: true, rows: schedValues.length - 2, bookings: bk.rows.length };
   } catch (err) {
     console.error("[sheets] sync алдаа:", err?.message || err);
     return { ok: false, error: String(err?.message || err) };
   }
 }
 
-/** Хаана ч await хүлээхгүйгээр хуваарийг чимээгүй шинэчлэх (fire-and-forget). */
+/** Хаана ч await хүлээхгүйгээр чимээгүй шинэчлэх (fire-and-forget). */
 export function syncScheduleSafe() {
   return syncScheduleToSheet().catch(() => {});
 }

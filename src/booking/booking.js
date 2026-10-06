@@ -15,6 +15,7 @@ import { formatMnt } from "../customer/greeting.js";
 import { isValidSlot } from "./schedule.js";
 import { artistsForService, pickArtist } from "./assignment.js";
 import { sendArtistText } from "../messenger/sendApi.js";
+import { syncScheduleSafe } from "../sheets/googleSheets.js";
 
 /** Монгол утасны дугаар эсэхийг шалгах (8 оронтой, 6/7/8/9-өөр эхэлнэ). */
 export function isValidPhone(phone) {
@@ -112,6 +113,9 @@ export async function createBooking(p) {
       console.error("[booking] артист мэдэгдэл алдаа:", err),
     );
   }
+
+  // Google Sheet-ийн "Захиалга" табыг шинэчлэх.
+  await syncScheduleSafe();
 
   return { booking, service, variant, artist: assigned };
 }

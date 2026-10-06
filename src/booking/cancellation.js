@@ -8,6 +8,7 @@
 
 import { config } from "../config.js";
 import { repository } from "../db/repository.js";
+import { syncScheduleSafe } from "../sheets/googleSheets.js";
 
 /**
  * Цуцлалтын цагийг үнэлэх (эрт мэдэгдсэн эсэх).
@@ -42,6 +43,9 @@ export async function cancelBooking(bookingId, now = new Date()) {
     status: "cancelled",
     cancelledAt: now.toISOString(),
   });
+
+  // Google Sheet-ийн "Захиалга" табыг шинэчлэх (цаг сул болсон).
+  await syncScheduleSafe();
 
   return { booking: updated, ...evaln };
 }

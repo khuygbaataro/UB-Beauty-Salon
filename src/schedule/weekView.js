@@ -7,6 +7,7 @@
 //   • Telegram — жижиг, цэвэрхэн монопэйс хүснэгт (утсанд багтах)
 // ─────────────────────────────────────────────────────────────
 
+import { config } from "../config.js";
 import { repository } from "../db/repository.js";
 import { weekDates, dayKeyOf } from "../booking/schedule.js";
 
@@ -62,6 +63,42 @@ export function weekSheetValues(data, updatedAt) {
   ]);
   const titleRow = [`Энэ долоо хоног: ${data.title}${updatedAt ? ` — шинэчилсэн ${updatedAt}` : ""}`];
   return [titleRow, header, ...rows];
+}
+
+// ───────── Захиалгын календарь (цаг × өдөр) ─────────
+/** Энэ долоо хоногт захиалагдсан цагуудыг цаг × өдрийн хүснэгтээр. */
+export async function buildBookingsGrid() {
+  const dates = weekDates();
+  const bookings = (await repository.listBookings({})).filter(
+    (b) => b.status !== "cancelled" && dates.includes(b.date),
+  );
+
+  // Цагийн мөрүүд (салоны ажиллах цагаар, цаг тутам).
+  const slots = [];
+  for (let h = config.salonOpenHour; h < config.salonCloseHour; h++) {
+    slots.push(`${String(h).padStart(2, "0")}:00`);
+  }
+
+  // Огноо+цагаар индекслэх.
+  const byKey = new Map();
+  for (const b of bookings) {
+    const key = `${b.date} ${b.time}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(b);
+  }
+
+  const header = ["Цаг", ...dates.map((d) => `${DAY_LABEL[dayKeyOf(d)]} ${mmdd(d)}`)];
+  const rows = slots.map((t) => [
+    t,
+    ...dates.map((d) => {
+      const arr = byKey.get(`${d} ${t}`) || [];
+      return arr
+        .map((b) => `${b.phone} · ${b.serviceName}${b.artistName ? ` (${b.artistName})` : ""}`)
+        .join("\n");
+    }),
+  ]);
+
+  return { dates, header, rows, title: `${mmdd(dates[0])}–${mmdd(dates[6])}` };
 }
 
 // ───────── Telegram (жижиг, монопэйс) ─────────
