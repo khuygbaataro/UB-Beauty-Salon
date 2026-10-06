@@ -29,10 +29,20 @@ export function isSheetsConfigured() {
   return Boolean(config.googleServiceAccountEmail && config.googlePrivateKey && config.googleSheetId);
 }
 
+/** Private key-г цэвэрлэх: гадна талын хашилт арилгах + \n-г жинхэнэ мөр болгох.
+ *  (Vercel-д хашилттай хуулсан ч ажиллана.) */
+function normalizeKey(raw) {
+  let k = (raw || "").trim();
+  if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) {
+    k = k.slice(1, -1);
+  }
+  return k.replace(/\\n/g, "\n");
+}
+
 function getSheetsClient() {
   const auth = new google.auth.JWT({
-    email: config.googleServiceAccountEmail,
-    key: config.googlePrivateKey.replace(/\\n/g, "\n"),
+    email: config.googleServiceAccountEmail.trim().replace(/^["']|["']$/g, ""),
+    key: normalizeKey(config.googlePrivateKey),
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
   return google.sheets({ version: "v4", auth });

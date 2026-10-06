@@ -1,5 +1,14 @@
 // Төвлөрсөн тохиргоо. Бүх орчны хувьсагчийг энд уншиж, бусад модуль үүгээр хэрэглэнэ.
 
+/** Орчны хувьсагчийн гадна талын хашилтыг арилгах (Vercel-д хашилттай хуулсан тохиолдолд). */
+function unquote(v) {
+  const s = (v || "").trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    return s.slice(1, -1);
+  }
+  return s;
+}
+
 export const config = {
   // --- AI ---
   // Anthropic (Admin AI-д хэрэглэнэ)
@@ -31,9 +40,9 @@ export const config = {
   artistFbVerifyToken: process.env.ARTIST_FB_VERIFY_TOKEN || process.env.FB_VERIFY_TOKEN || "",
 
   // --- Google Sheets (артистын хуваарь харуулах) ---
-  googleServiceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "",
-  googlePrivateKey: process.env.GOOGLE_PRIVATE_KEY || "",
-  googleSheetId: process.env.GOOGLE_SHEET_ID || "",
+  googleServiceAccountEmail: unquote(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL),
+  googlePrivateKey: process.env.GOOGLE_PRIVATE_KEY || "", // key-г googleSheets.js normalizeKey-ээр цэвэрлэнэ
+  googleSheetId: unquote(process.env.GOOGLE_SHEET_ID),
 
   // --- Cloudinary (зураг байршуулах) ---
   // CLOUDINARY_URL (cloudinary://key:secret@cloud) эсвэл тус тусад нь өгч болно.
