@@ -132,6 +132,19 @@ async function handleMessagingEvent(event) {
 
   // 2) Энгийн текст мессеж
   if (event.message?.text) {
+    // "reset" — ярианы түүхийг цэвэрлэж, шинээр мэндчилнэ (туршилтад хялбар)
+    const t = event.message.text.trim().toLowerCase();
+    if (t === "reset" || t === "/reset") {
+      await repository.setConversation(psid, []);
+      const names = await presentMainServices(psid);
+      await seedGreeting(
+        psid,
+        `[Reset — шинээр эхэллээ. Мэндчилгээ + жагсаалт илгээв: ${names.join(", ")}. ` +
+          `Хэрэглэгчийн хариуг хүлээнэ.]`,
+      );
+      return;
+    }
+
     // Контентоос ирээгүй + анхны холбоо → НЭГ богино мессежээр үйлчилгээний цэс
     if (!ref && !event.postback && (await isNewConversation(psid))) {
       const names = await presentMainServices(psid);
