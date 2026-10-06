@@ -431,42 +431,62 @@ export async function handleArtistMessage({ psid, text }) {
   }
 
   const tools = artist.role === "manager" ? [...PERSONAL_TOOLS, ...MANAGER_TOOLS] : PERSONAL_TOOLS;
-  const history = artistConversations.get(psid) || [];
+  // ⚠️ Хадгалсан түүхийг ХУУЛЖ, эхнээс нь цэвэрлэнэ (reference-ээр эвдэхгүй).
+  const history = sanitizeHistory([...(artistConversations.get(psid) || [])]);
   history.push({ role: "user", content: text });
 
   const system = buildSystemPrompt(artist);
   const ctx = { artist };
   let reply = "";
 
-  for (let i = 0; i < 6; i++) {
-    const message = await createMessage({
-      system,
-      messages: history,
-      tools,
-      maxTokens: 1500,
-      model: config.adminModel,
-    });
-    history.push({ role: "assistant", content: message.content });
+  try {
+    for (let i = 0; i < 6; i++) {
+      const message = await createMessage({
+        system,
+        messages: history,
+        tools,
+        maxTokens: 1500,
+        model: config.adminModel,
+      });
+      history.push({ role: "assistant", content: message.content });
 
-    const toolUses = extractToolUses(message);
-    if (message.stop_reason !== "tool_use" || !toolUses.length) {
-      reply = extractText(message);
-      break;
-    }
-
-    const results = [];
-    for (const tu of toolUses) {
-      let output;
-      try {
-        output = await runTool(tu.name, tu.input, ctx);
-      } catch (err) {
-        output = { ok: false, error: String(err.message || err) };
+      const toolUses = extractToolUses(message);
+      if (message.stop_reason !== "tool_use" || !toolUses.length) {
+        reply = extractText(message);
+        break;
       }
-      results.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(output) });
+
+      const results = [];
+      for (const tu of toolUses) {
+        let output;
+        try {
+          output = await runTool(tu.name, tu.input, ctx);
+        } catch (err) {
+          output = { ok: false, error: String(err.message || err) };
+        }
+        results.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(output) });
+      }
+      history.push({ role: "user", content: results });
     }
-    history.push({ role: "user", content: results });
+  } catch (err) {
+    console.error("[artist] AI алдаа:", err?.message || err);
+    artistConversations.delete(psid);
+    return "Түр алдаа гарлаа. Дахин бичнэ үү.";
   }
 
-  artistConversations.set(psid, history.slice(-MAX_HISTORY));
+  if (reply) {
+    artistConversations.set(psid, sanitizeHistory(history).slice(-MAX_HISTORY));
+  } else {
+    artistConversations.delete(psid);
+  }
   return reply || "Ойлгосон.";
+}
+
+/** Түүхийг эхнээс нь цэвэрлэх: жинхэнэ хэрэглэгчийн (string) мессежээс эхлүүлнэ. */
+function sanitizeHistory(h) {
+  const arr = h.slice();
+  while (arr.length && !(arr[0].role === "user" && typeof arr[0].content === "string")) {
+    arr.shift();
+  }
+  return arr;
 }

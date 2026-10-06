@@ -530,37 +530,61 @@ async function runTool(name, input, ctx = {}) {
  * @param {string} p.text
  * @returns {Promise<string>}
  */
+/** Түүхийг эхнээс нь цэвэрлэх: орфан tool_result/assistant блокийг хасаж,
+ *  жинхэнэ хэрэглэгчийн (string) мессежээс эхлүүлнэ (Anthropic дараалал зөрчихгүй). */
+function sanitizeHistory(h) {
+  const arr = h.slice();
+  while (arr.length && !(arr[0].role === "user" && typeof arr[0].content === "string")) {
+    arr.shift();
+  }
+  return arr;
+}
+
 export async function handleAdminMessage({ adminId, text }) {
-  const history = adminConversations.get(adminId) || [];
+  // ⚠️ Хадгалсан түүхийг ХУУЛЖ авна (reference-ээр өөрчилж эвдэхгүйн тулд).
+  const history = sanitizeHistory([...(adminConversations.get(adminId) || [])]);
   history.push({ role: "user", content: text });
 
   const system = buildSystemPrompt();
   let reply = "";
 
-  for (let i = 0; i < 6; i++) {
-    const message = await createMessage({ system, messages: history, tools, maxTokens: 1500, model: config.adminModel });
-    history.push({ role: "assistant", content: message.content });
+  try {
+    for (let i = 0; i < 6; i++) {
+      const message = await createMessage({ system, messages: history, tools, maxTokens: 1500, model: config.adminModel });
+      history.push({ role: "assistant", content: message.content });
 
-    const toolUses = extractToolUses(message);
-    if (message.stop_reason !== "tool_use" || !toolUses.length) {
-      reply = extractText(message);
-      break;
-    }
-
-    const results = [];
-    for (const tu of toolUses) {
-      let output;
-      try {
-        output = await runTool(tu.name, tu.input, { adminId });
-      } catch (err) {
-        output = { ok: false, error: String(err.message || err) };
+      const toolUses = extractToolUses(message);
+      if (message.stop_reason !== "tool_use" || !toolUses.length) {
+        reply = extractText(message);
+        break;
       }
-      results.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(output) });
+
+      const results = [];
+      for (const tu of toolUses) {
+        let output;
+        try {
+          output = await runTool(tu.name, tu.input, { adminId });
+        } catch (err) {
+          output = { ok: false, error: String(err.message || err) };
+        }
+        results.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(output) });
+      }
+      history.push({ role: "user", content: results });
     }
-    history.push({ role: "user", content: results });
+  } catch (err) {
+    // AI/API алдаа → эвдэрсэн түүхийг ХАДГАЛАХГҮЙ, цэвэрлэж өөрөө эдгэнэ.
+    console.error("[admin] AI алдаа:", err?.message || err);
+    adminConversations.delete(adminId);
+    return "Түр алдаа гарлаа. Дахин бичнэ үү.";
   }
 
-  adminConversations.set(adminId, history.slice(-MAX_HISTORY));
+  // Зөвхөн ЦЭВЭР төлөв (assistant текстээр дууссан) хадгална. Tool-ээр дуусвал
+  // (reply хоосон) дутуу/эвдэрсэн дараалал үлдэхээс сэргийлж цэвэрлэнэ.
+  if (reply) {
+    adminConversations.set(adminId, sanitizeHistory(history).slice(-MAX_HISTORY));
+  } else {
+    adminConversations.delete(adminId);
+  }
   return reply || "Ойлгосон.";
 }
 
