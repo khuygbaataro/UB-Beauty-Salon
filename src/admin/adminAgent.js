@@ -94,6 +94,55 @@ const tools = [
     },
   },
   {
+    name: "list_products",
+    description: "Дэлгүүрт зарагддаг бараа бүтээгдэхүүнийг (үйлчилгээнээс тусдаа) жагсаах.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "create_product",
+    description:
+      "Дэлгүүрт зарагддаг ШИНЭ бараа нэмэх (тос, маск г.м. — үйлчилгээ БИШ). Нэр, үнэ, зураг (URL эсвэл " +
+      "Telegram-аар илгээсэн), тайлбар.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        price: { type: ["number", "null"], description: "Үнэ төгрөгөөр" },
+        image: { type: "string", description: "Зургийн ХОЛБООС (https://...)" },
+        description: { type: "string" },
+      },
+      required: ["name"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_product",
+    description: "Бараа бүтээгдэхүүний мэдээлэл засах (нэр, үнэ, зураг, тайлбар, идэвхтэй эсэх).",
+    input_schema: {
+      type: "object",
+      properties: {
+        productId: { type: "string" },
+        name: { type: "string" },
+        price: { type: ["number", "null"] },
+        image: { type: "string" },
+        description: { type: "string" },
+        active: { type: "boolean" },
+      },
+      required: ["productId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_product",
+    description: "Бараа бүтээгдэхүүнийг БҮРМӨСӨН устгах (productId-аар; буцаахгүй).",
+    input_schema: {
+      type: "object",
+      properties: { productId: { type: "string" } },
+      required: ["productId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "add_booking",
     description:
       "Гараар цаг захиалга бүртгэх (утсаар/биечлэн ирсэн). confirmed=true бол баталгаажсан гэж тэмдэглэнэ.",
@@ -307,6 +356,7 @@ export function adminHomeText() {
     `UB Beauty — Админ туслах 😊\n` +
     `Би танд салоны ажлыг удирдахад тусална. Доорх хэсгүүдээс сонгоорой:\n\n` +
     `• Үйлчилгээ — салонд үзүүлдэг үйлчилгээ нэмэх, үнэ/зураг засах, устгах\n` +
+    `• Бүтээгдэхүүн — дэлгүүрт зарагддаг бараа (тос, маск г.м.) нэмэх, засах, устгах\n` +
     `• Захиалга — өнөөдрийн захиалга харах, цуцлах, утсаар бүртгэх\n` +
     `• Артист — ажилтан бүртгэх (код өгөх), жагсаах, идэвхгүй болгох\n` +
     `• Амралт — артистын амралтын хүсэлтийг зөвшөөрөх/татгалзах\n` +
@@ -326,6 +376,12 @@ const ADMIN_SUBMENUS = {
     `• Устгах — "<үйлчилгээг> устга" (бүрмөсөн)\n` +
     `• Түр нуух — "<үйлчилгээг> идэвхгүй болго"\n` +
     `• Жагсаах — "үйлчилгээнүүдээ харуул"`,
+  "бүтээгдэхүүн":
+    `Бүтээгдэхүүн (дэлгүүрт зарагддаг бараа — үйлчилгээнээс тусдаа):\n` +
+    `• Нэмэх — "шинэ бараа нэмье" (нэр, үнэ, зураг, тайлбар)\n` +
+    `• Засах — "<барааны> үнэ / зураг засах"\n` +
+    `• Устгах — "<барааг> устга" (бүрмөсөн)\n` +
+    `• Жагсаах — "бараануудаа харуул"`,
   "захиалга":
     `Захиалга:\n` +
     `• Харах — "өнөөдрийн захиалгууд" / "захиалгууд"\n` +
@@ -412,6 +468,9 @@ function buildSystemPrompt() {
     `• ҮЙЛЧИЛГЭЭ устгах/нуух: БҮРМӨСӨН устгах бол delete_service (устгахын өмнө заавал баталгаажуул, ` +
     `буцаахгүй). Түр нуух/идэвхгүй болгох бол update_service-ийн active=false (устгахгүй, дараа эргүүлж асааж болно). ` +
     `Нэмсэн/засварласан үйлчилгээ хэрэглэгчийн ботод шууд харагдана.\n` +
+    `• БАРАА БҮТЭЭГДЭХҮҮН (үйлчилгээнээс ТУСДАА — дэлгүүрт зарагддаг тос/маск г.м.): нэмэх create_product, ` +
+    `засах update_product, устгах delete_product, жагсаах list_products. Үйлчилгээ vs бараа хоёрыг ` +
+    `бүү андуур — "үйлчилгээ" нь салонд үзүүлдэг (лазер, GREEN PEEL), "бараа" нь зарж буй эд юм.\n` +
     `• Код өгсний дараа: хүн артистын Facebook хуудас руу кодоо илгээхэд бүртгэл идэвхжиж, өөрөө хуваараа тохируулна. ` +
     `Артистын хийдэг үйлчилгээг өөрчлөхдөө update_artist-ийн serviceIds-г ашигла. ` +
     `list_artists-ээр бүгдийг жагсаана. (invalidServiceIds буцвал тэр id буруу — засаж дахин оролд.)\n` +
@@ -485,6 +544,31 @@ async function runTool(name, input, ctx = {}) {
       if (!svc) return { ok: false, error: "Үйлчилгээ олдсонгүй." };
       await repository.deleteService(input.serviceId);
       return { ok: true, deleted: svc.name, note: "Үйлчилгээ устгагдлаа." };
+    }
+    case "list_products": {
+      const prods = await repository.listProducts({ activeOnly: false });
+      return prods.map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        hasImage: Boolean(p.image),
+        active: p.active,
+      }));
+    }
+    case "create_product": {
+      const prod = await repository.createProduct(input);
+      return { ok: true, productId: prod.id, name: prod.name, note: "Бараа нэмэгдлээ." };
+    }
+    case "update_product": {
+      const { productId, ...patch } = input;
+      const upd = await repository.updateProduct(productId, patch);
+      return upd ? { ok: true, product: { id: upd.id, name: upd.name, price: upd.price, active: upd.active } } : { ok: false, error: "Бараа олдсонгүй." };
+    }
+    case "delete_product": {
+      const prod = await repository.getProduct(input.productId);
+      if (!prod) return { ok: false, error: "Бараа олдсонгүй." };
+      await repository.deleteProduct(input.productId);
+      return { ok: true, deleted: prod.name, note: "Бараа устгагдлаа." };
     }
     case "add_booking": {
       // override:true — ажилтан гараар оруулах тул слот шалгалтыг алгасна

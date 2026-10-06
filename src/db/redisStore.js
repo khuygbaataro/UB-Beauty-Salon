@@ -6,6 +6,7 @@
 //
 //  Түлхүүрүүд:
 //    hash  svc        — үйлчилгээ (id -> object)
+//    hash  prod       — бараа бүтээгдэхүүн (дэлгүүрт зарагддаг)
 //    hash  bk         — захиалга
 //    hash  art        — артистууд (хуваарьтай ажилтан)
 //    hash  tor        — артистын амралтын хүсэлт (зөвшөөрөл)
@@ -81,6 +82,30 @@ export function createRedisStore() {
     },
     async deleteService(id) {
       return (await redis.hdel("svc", id)) > 0;
+    },
+
+    // ───────── Бараа бүтээгдэхүүн (products) ─────────
+    async listProducts({ activeOnly = true } = {}) {
+      const arr = valuesOf(await redis.hgetall("prod"));
+      return arr.filter((p) => (activeOnly ? p.active : true));
+    },
+    async getProduct(id) {
+      return (await redis.hget("prod", id)) || null;
+    },
+    async createProduct(data) {
+      const prod = { id: data.id || genId("prod"), active: true, createdAt: new Date().toISOString(), ...data };
+      await redis.hset("prod", { [prod.id]: prod });
+      return prod;
+    },
+    async updateProduct(id, patch) {
+      const cur = await redis.hget("prod", id);
+      if (!cur) return null;
+      const upd = { ...cur, ...patch, id };
+      await redis.hset("prod", { [id]: upd });
+      return upd;
+    },
+    async deleteProduct(id) {
+      return (await redis.hdel("prod", id)) > 0;
     },
 
     // ───────── Bookings ─────────

@@ -21,6 +21,7 @@ function genId(prefix) {
 export function createJsonStore() {
   // seed-ээс хуулж авна (seed-ийг гэмтээхгүйн тулд)
   const services = clone(seedServices);
+  const products = []; // дэлгүүрт зарагддаг бараа (үйлчилгээнээс тусдаа)
   const bookings = [];
   const artists = []; // артистууд (хуваарьтай ажилтан)
   const timeOffRequests = []; // артистын амралтын хүсэлт (зөвшөөрөл шаардсан)
@@ -63,6 +64,32 @@ export function createJsonStore() {
       const i = services.findIndex((x) => x.id === id);
       if (i === -1) return false;
       services.splice(i, 1);
+      return true;
+    },
+
+    // ───────── Бараа бүтээгдэхүүн (products — дэлгүүрт зарагддаг) ─────────
+    async listProducts({ activeOnly = true } = {}) {
+      return products.filter((p) => (activeOnly ? p.active : true)).map(clone);
+    },
+    async getProduct(id) {
+      const p = products.find((x) => x.id === id);
+      return p ? clone(p) : null;
+    },
+    async createProduct(data) {
+      const prod = { id: data.id || genId("prod"), active: true, createdAt: new Date().toISOString(), ...data };
+      products.push(prod);
+      return clone(prod);
+    },
+    async updateProduct(id, patch) {
+      const i = products.findIndex((x) => x.id === id);
+      if (i === -1) return null;
+      products[i] = { ...products[i], ...patch, id };
+      return clone(products[i]);
+    },
+    async deleteProduct(id) {
+      const i = products.findIndex((x) => x.id === id);
+      if (i === -1) return false;
+      products.splice(i, 1);
       return true;
     },
 

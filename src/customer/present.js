@@ -32,3 +32,8 @@ export async function presentMainServices(psid) {
 export async function presentOneService(psid, service) {
   await sendServiceCard(psid, service);
 }
+
+/** Нэг бараа бүтээгдэхүүнийг зурагт картаар танилцуулах. */
+export async function presentProduct(psid, product) {
+  await sendServiceCard(psid, product);
+}

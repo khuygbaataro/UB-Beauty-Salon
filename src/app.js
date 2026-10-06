@@ -263,6 +263,7 @@ async function handleAdminPhoto(chatId, msg, photo) {
     `[Админ зураг илгээж, Cloudinary-д байршлаа. ${caption}` +
     `Энэ зургийн URL-ийг ярианы агуулгаас хамаарч ТОХИРОХ газар хэрэглэ: ` +
     `үйлчилгээний зураг бол create_service/update_service-ийн image талбарт, ` +
+    `бараа бүтээгдэхүүний зураг бол create_product/update_product-ийн image талбарт, ` +
     `мэдлэгийн сангийн хариулт бол add_knowledge/update_knowledge-ийн image талбарт. URL: ${up.url}]`;
   const reply = await handleAdminMessage({ adminId: chatId, text: note });
   await sendTelegram(chatId, reply);

@@ -21,7 +21,7 @@ import { createBooking, bookingSummary } from "../booking/booking.js";
 import { cancelBooking, cancellationMessage } from "../booking/cancellation.js";
 import { suggestSlots, ubDate, ubClock } from "../booking/schedule.js";
 import { suggestServiceSlots, artistsForService } from "../booking/assignment.js";
-import { presentOneService } from "./present.js";
+import { presentOneService, presentProduct } from "./present.js";
 import { sendImage } from "../messenger/sendApi.js";
 import { escalateQuestion, searchKnowledge } from "../escalation.js";
 
@@ -55,6 +55,23 @@ const tools = [
         serviceId: { type: "string", description: "Үйлчилгээний id (list_services-ээс)" },
       },
       required: ["serviceId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "list_products",
+    description:
+      "Дэлгүүрт зарагддаг бараа бүтээгдэхүүнийг (тос, маск г.м. — үйлчилгээ БИШ) жагсаах. Хэрэглэгч " +
+      "'ямар бараа зардаг вэ', 'тос байна уу' гэх мэт асуувал ашигла.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "present_product",
+    description: "Нэг бараа бүтээгдэхүүнийг зурагт картаар үзүүлэх (хэрэглэгч сонирхсон үед).",
+    input_schema: {
+      type: "object",
+      properties: { productId: { type: "string", description: "Барааны id (list_products-ээс)" } },
+      required: ["productId"],
       additionalProperties: false,
     },
   },
@@ -208,6 +225,9 @@ async function buildSystemPrompt(psid) {
     `нэмж юм зохихгүй):\n` +
     `  📍 Хаяг: ${config.salonLocation}\n` +
     `  ☎ Утас: ${config.salonPhone}\n` +
+    `• БАРАА БҮТЭЭГДЭХҮҮН (үйлчилгээнээс тусдаа): Хэрэглэгч "ямар бараа зардаг вэ", "тос/маск байна уу" ` +
+    `гэх мэт асуувал list_products-оор жагсаа, сонирхвол present_product-оор зураг үзүүл. ` +
+    `Бараа нь ЗАРАГДДАГ эд — цаг захиалга зөвхөн ҮЙЛЧИЛГЭЭНД. Бараа авах бол салонд ирэхийг эелдэг хэл.\n` +
     `• ТУСГАЙ ЗААВАР: list_services-ийн 'notes' талбарт тухайн үйлчилгээний админы заавар байж болно. ` +
     `Тэр үйлчилгээг ярих/танилцуулахдаа notes-ийг ЗААВАЛ дага (жишээ "эмзэг арьсанд тохиромжтой гэж онцол").\n` +
     `• ⛔ АРТИСТГҮЙ ҮЙЛЧИЛГЭЭ: list_services-ийн hasArtist=false бол тэр үйлчилгээнд цаг захиалах ` +
@@ -261,6 +281,16 @@ async function runTool(name, input, ctx) {
       if (!svc) return { ok: false, error: "Үйлчилгээ олдсонгүй." };
       await presentOneService(ctx.psid, svc);
       return { ok: true, presented: svc.name };
+    }
+    case "list_products": {
+      const prods = await repository.listProducts({ activeOnly: true });
+      return prods.map((p) => ({ id: p.id, name: p.name, price: p.price, description: p.description ?? null }));
+    }
+    case "present_product": {
+      const prod = await repository.getProduct(input.productId);
+      if (!prod) return { ok: false, error: "Бараа олдсонгүй." };
+      await presentProduct(ctx.psid, prod);
+      return { ok: true, presented: prod.name };
     }
     case "check_availability": {
       // Үйлчилгээг хийдэг артист бүртгэлтэй бол артистын сул цагаар тооцно,

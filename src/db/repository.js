@@ -68,6 +68,13 @@ export const repository = {
   deleteService: (id) => getStore().deleteService(id),
   findServiceByRef,
 
+  // Products (дэлгүүрт зарагддаг бараа — үйлчилгээнээс тусдаа)
+  listProducts: (opts) => getStore().listProducts(opts),
+  getProduct: (id) => getStore().getProduct(id),
+  createProduct: (data) => getStore().createProduct(data),
+  updateProduct: (id, patch) => getStore().updateProduct(id, patch),
+  deleteProduct: (id) => getStore().deleteProduct(id),
+
   // Bookings
   createBooking: (data) => getStore().createBooking(data),
   getBooking: (id) => getStore().getBooking(id),
