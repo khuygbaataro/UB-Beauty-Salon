@@ -114,10 +114,34 @@ export async function createBooking(p) {
     );
   }
 
+  // Менежер(үүд) рүү БҮХ захиалгын мэдэгдэл илгээх.
+  await notifyManagersOfBooking(booking, assigned).catch((err) =>
+    console.error("[booking] менежер мэдэгдэл алдаа:", err),
+  );
+
   // Google Sheet-ийн "Захиалга" табыг шинэчлэх.
   await syncScheduleSafe();
 
   return { booking, service, variant, artist: assigned };
+}
+
+/** Менежер бүр рүү шинэ захиалгын мэдэгдэл (бүх захиалга менежерт очно). */
+async function notifyManagersOfBooking(booking, assigned) {
+  const managers = (await repository.listArtists({ active: true })).filter(
+    (a) => a.role === "manager" && a.psid,
+  );
+  if (!managers.length) return;
+  const text =
+    `📋 Шинэ захиалга (менежер)\n\n` +
+    `• Үйлчилгээ: ${booking.serviceName}${booking.variantName ? ` (${booking.variantName})` : ""}\n` +
+    `• Огноо: ${booking.date}\n` +
+    `• Цаг: ${booking.time}\n` +
+    `• Утас: ${booking.phone}\n` +
+    `• Артист: ${booking.artistName || "—"}`;
+  for (const m of managers) {
+    if (assigned && m.id === assigned.id) continue; // артист нь менежер бол давхардуулахгүй
+    await sendArtistText(m.psid, text, "UPDATE").catch(() => {});
+  }
 }
 
 /** Оноогдсон артист руу шинэ захиалгын мэдэгдэл илгээх. */

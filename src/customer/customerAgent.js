@@ -129,6 +129,10 @@ const tools = [
 async function buildSystemPrompt(psid) {
   const services = await repository.listServices({ activeOnly: true });
 
+  // Админ тохируулсан нэмэлт өнгө аяс/хэв маягийн заавар (байвал).
+  const tone = await repository.getSetting("tone");
+  const toneNote = tone ? `\n\n⭐ АДМИНААС НЭМЭЛТ ХЭВ МАЯГИЙН ЗААВАР (дээд зэргээр баримтал): ${tone}` : "";
+
   // Мэндчилгээнд ашиглах цэвэр нэрсийн жагсаалт (үнэгүй).
   const menuList = services.map((s) => `• ${s.name}`).join("\n");
 
@@ -223,6 +227,7 @@ async function buildSystemPrompt(psid) {
     `АЖИЛЛАХ ЦАГ (хатуу дүрэм): артистууд өдөр бүр ${config.salonOpenHour}:00–${config.salonCloseHour}:00 ` +
     `ажиллана. Сүүлийн захиалгын цаг ${config.salonCloseHour - 1}:00. Ажиллах цагийн гаднах цаг БҮҮ санал болго.` +
     referredNote +
+    toneNote +
     `\n\nҮйлчилгээний сан:\n${catalog}`
   );
 }

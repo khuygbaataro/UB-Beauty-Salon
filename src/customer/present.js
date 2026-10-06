@@ -16,12 +16,14 @@ export async function presentMainServices(psid) {
   const services = await repository.listServices({ activeOnly: true });
   const menu = services.map((s) => `• ${s.name}`).join("\n");
 
-  await sendText(
-    psid,
-    `Сайн байна уу?\n\n` +
-      `${config.salonName}-ны чатботод тавтай морилно уу.\n\n` +
-      `Ямар үйлчилгээний талаар дэлгэрэнгүй мэдээлэл авахыг хүсэж байна вэ?\n\n${menu}`,
-  );
+  // Админ тохируулсан мэндчилгээ байвал түүнийг, эс бол default-ийг ашиглана.
+  const custom = await repository.getSetting("greeting");
+  const intro =
+    custom ||
+    `Сайн байна уу?\n\n${config.salonName}-ны чатботод тавтай морилно уу.\n\n` +
+      `Ямар үйлчилгээний талаар дэлгэрэнгүй мэдээлэл авахыг хүсэж байна вэ?`;
+
+  await sendText(psid, `${intro}\n\n${menu}`);
 
   return services.map((s) => s.name);
 }

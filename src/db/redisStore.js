@@ -253,5 +253,16 @@ export function createRedisStore() {
     async setReferred(psid, serviceId) {
       if (psid && serviceId) await redis.set(`ref:${psid}`, serviceId, { ex: CONV_TTL });
     },
+
+    // ───────── Тохиргоо (ботын текст/өнгө аяс) ─────────
+    async getSetting(key) {
+      return (await redis.hget("settings", key)) ?? null;
+    },
+    async setSetting(key, value) {
+      await redis.hset("settings", { [key]: value });
+    },
+    async listSettings() {
+      return (await redis.hgetall("settings")) || {};
+    },
   };
 }

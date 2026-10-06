@@ -245,6 +245,26 @@ const tools = [
     input_schema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
+    name: "set_bot_text",
+    description:
+      "Хэрэглэгчийн ботын ТЕКСТ/ӨНГӨ АЯСЫГ тохируулах. key='greeting' → эхний мэндчилгээний текст; " +
+      "key='tone' → ботын ерөнхий өнгө аяс/хэв маягийн нэмэлт заавар (жишээ 'илүү дулаан, ✨ emoji хэрэглэ').",
+    input_schema: {
+      type: "object",
+      properties: {
+        key: { type: "string", enum: ["greeting", "tone"] },
+        value: { type: "string", description: "Шинэ текст/заавар" },
+      },
+      required: ["key", "value"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_bot_text",
+    description: "Хэрэглэгчийн ботын одоогийн тохируулсан мэндчилгээ (greeting) ба өнгө аяс (tone)-г харах.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
     name: "sync_schedule_sheet",
     description: "Артистуудын ажиллах хуваарийг Google Sheet руу гараар шинэчлэх (ихэвчлэн автоматаар шинэчлэгддэг).",
     input_schema: { type: "object", properties: {}, additionalProperties: false },
@@ -342,6 +362,9 @@ function buildSystemPrompt() {
     `• ЗУРАГ ирэхэд: админ зураг илгээхэд URL өгөгдөнө. Ярианы агуулгаас шалтгаалж ` +
     `ҮЙЛЧИЛГЭЭНИЙ зураг бол create/update_service-ийн image-д, МЭДЛЭГИЙН хариултын зураг бол ` +
     `add/update_knowledge-ийн image-д хэрэглэ.\n` +
+    `• ХЭРЭГЛЭГЧИЙН БОТЫН ТЕКСТ/ӨНГӨ: Админ "мэндчилгээг ... болго" гэвэл set_bot_text key='greeting', ` +
+    `"бот илүү дулаан/өөр өнгөтэй ярь, ✨ emoji хэрэглэ" гэх мэт бол key='tone'-оор хадгал. ` +
+    `get_bot_text-ээр одоогийнхыг хар. Өөрчлөлт хэрэглэгчийн ботод шууд тусна.\n` +
     `• ХУВААРИЙН GOOGLE SHEET: Артистуудын ажиллах хуваарь өөрчлөгдөх бүрт Google Sheet автоматаар ` +
     `шинэчлэгддэг. "хуваарь шинэчил/гарга" гэвэл sync_schedule_sheet-ээр гараар шинэчилж болно.\n` +
     `• ЭНЭ ДОЛОО ХОНОГИЙН ХУВААРЬ: "энэ долоо хоног", "хэн ажиллаж байна", "7 хоногийн хуваарь" гэвэл ` +
@@ -498,6 +521,16 @@ async function runTool(name, input, ctx = {}) {
         ok: true,
         artist: { id: updated.id, name: updated.name, role: updated.role, serviceIds: updated.serviceIds, active: updated.active },
         invalidServiceIds: invalid,
+      };
+    }
+    case "set_bot_text": {
+      await repository.setSetting(input.key, input.value);
+      return { ok: true, key: input.key, note: "Хэрэглэгчийн ботод шууд тусна." };
+    }
+    case "get_bot_text": {
+      return {
+        greeting: (await repository.getSetting("greeting")) || "(анхны default)",
+        tone: (await repository.getSetting("tone")) || "(анхны default)",
       };
     }
     case "sync_schedule_sheet": {

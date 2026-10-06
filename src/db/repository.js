@@ -106,6 +106,11 @@ export const repository = {
   getReferred: (psid) => getStore().getReferred(psid),
   setReferred: (psid, serviceId) => getStore().setReferred(psid, serviceId),
 
+  // Тохиргоо (ботын текст/өнгө аяс)
+  getSetting: (key) => getStore().getSetting(key),
+  setSetting: (key, value) => getStore().setSetting(key, value),
+  listSettings: () => getStore().listSettings(),
+
   // Диагностик
   get kind() {
     return getStore().kind;

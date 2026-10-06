@@ -25,6 +25,7 @@ import {
 import { createArtistInvite, claimArtistByCode, extractCode } from "./registration.js";
 import { notifyAdmins } from "../admin/telegramSend.js";
 import { syncScheduleSafe } from "../sheets/googleSheets.js";
+import { createBooking, bookingSummary } from "../booking/booking.js";
 import { buildWeekData, weekTelegramText } from "../schedule/weekView.js";
 
 /** Telegram HTML escape. */
@@ -161,6 +162,29 @@ const MANAGER_TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "list_services",
+    description: "Бүх үйлчилгээг id-тэй нь жагсаах (гараар захиалга бүртгэхэд үйлчилгээний id авахад).",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "add_booking",
+    description:
+      "Утсаар/биечлэн ирсэн захиалгыг ГАРААР бүртгэх. Утас, үйлчилгээ (serviceId), огноо (YYYY-MM-DD), цаг (HH:mm) " +
+      "заавал. artistId өгвөл тэр артистад оноогдоно (list_all_artists-ээс ав). Оноосон артист + менежер рүү мэдэгдэнэ.",
+    input_schema: {
+      type: "object",
+      properties: {
+        phone: { type: "string", description: "8 оронтой утас" },
+        serviceId: { type: "string", description: "Үйлчилгээний id (list_services-ээс)" },
+        date: { type: "string", description: "YYYY-MM-DD" },
+        time: { type: "string", description: "HH:mm" },
+        artistId: { type: "string", description: "Аль артистад оноох (сонголт)" },
+      },
+      required: ["phone", "serviceId", "date", "time"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 // ───────── Туслахууд ─────────
@@ -224,7 +248,10 @@ function buildSystemPrompt(artist) {
     `• Захиалга асуувал list_my_bookings-оор хараад товч жагсаа.\n` +
     (isManager
       ? `• Менежер "бүх артист", "өнөөдөр хэн ачаалалтай вэ", "шинэ артист нэм/код үүсгэ" гэвэл ` +
-        `list_all_artists / day_overview / create_artist_invite-ийг ашигла. Код үүсгэвэл кодыг тодорхой хэл.\n`
+        `list_all_artists / day_overview / create_artist_invite-ийг ашигла. Код үүсгэвэл кодыг тодорхой хэл.\n` +
+        `• УТСААР/ГАРААР ирсэн захиалга бүртгэх: list_services-ээр id аваад add_booking-оор бүртгэ ` +
+        `(утас, serviceId, огноо YYYY-MM-DD, цаг HH:mm; артистыг зааж өгвөл list_all_artists-ээс artistId ав). ` +
+        `Оноосон артист + бусад менежер рүү мэдэгдэнэ.\n`
       : "") +
     `• ⛔ Зохиож болохгүй: зөвхөн tool-оос ирсэн бодит өгөгдөл дээр тулгуурла.\n` +
     `• Үйлдэл бүрийн дараа юу өөрчлөгдсөнийг товч баталгаажуулж хэл.\n\n` +
@@ -383,6 +410,27 @@ async function runTool(name, input, ctx) {
       return updated
         ? { ok: true, name: updated.name, active: updated.active }
         : { ok: false, error: "Артист олдсонгүй." };
+    }
+    case "list_services": {
+      if (!isManager) return { ok: false, error: "Энэ үйлдэлд менежерийн эрх шаардлагатай." };
+      const services = await repository.listServices({ activeOnly: false });
+      return services.map((s) => ({ id: s.id, name: s.name, price: s.price, active: s.active }));
+    }
+    case "add_booking": {
+      if (!isManager) return { ok: false, error: "Энэ үйлдэлд менежерийн эрх шаардлагатай." };
+      try {
+        const { booking } = await createBooking({
+          phone: input.phone,
+          serviceId: input.serviceId,
+          date: input.date,
+          time: input.time,
+          artistId: input.artistId,
+          override: true, // гараар бүртгэх тул слот шалгалтыг алгасна
+        });
+        return { ok: true, summary: bookingSummary(booking), bookingId: booking.id };
+      } catch (err) {
+        return { ok: false, error: String(err.message || err) };
+      }
     }
 
     default:

@@ -28,6 +28,7 @@ export function createJsonStore() {
   const knowledge = []; // мэдлэгийн сан: хариулагдсан Q&A
   const conversations = new Map(); // psid -> messages[]
   const referred = new Map(); // psid -> serviceId
+  const settings = new Map(); // ботын тохиргоо (greeting, tone г.м.)
 
   return {
     kind: "json-memory",
@@ -250,6 +251,17 @@ export function createJsonStore() {
     },
     async setReferred(psid, serviceId) {
       if (psid && serviceId) referred.set(psid, serviceId);
+    },
+
+    // ───────── Тохиргоо (ботын текст/өнгө аяс) ─────────
+    async getSetting(key) {
+      return settings.has(key) ? settings.get(key) : null;
+    },
+    async setSetting(key, value) {
+      settings.set(key, value);
+    },
+    async listSettings() {
+      return Object.fromEntries(settings);
     },
   };
 }
