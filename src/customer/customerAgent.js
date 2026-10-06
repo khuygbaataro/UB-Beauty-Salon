@@ -202,7 +202,8 @@ async function buildSystemPrompt(psid) {
     `(3) олдохгүй бол escalate_to_staff, дараа нь "Таны асуултыг ажилтанд дамжууллаа, удахгүй ` +
     `хариу өгье" гэж эелдэг хэл. ${contactLine}\n` +
     `• Үйлчилгээ хэр удах талаар ТОО/ХУГАЦАА зохиож БҮҮ хэл.\n` +
-    `АЖИЛЛАХ ЦАГ: өдөр бүр ${config.salonOpenHour}:00–${config.salonCloseHour}:00.` +
+    `АЖИЛЛАХ ЦАГ (хатуу дүрэм): артистууд өдөр бүр ${config.salonOpenHour}:00–${config.salonCloseHour}:00 ` +
+    `ажиллана. Сүүлийн захиалгын цаг ${config.salonCloseHour - 1}:00. Ажиллах цагийн гаднах цаг БҮҮ санал болго.` +
     referredNote +
     `\n\nҮйлчилгээний сан:\n${catalog}`
   );

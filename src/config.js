@@ -52,7 +52,8 @@ export const config = {
 
   // --- Ажиллах цаг / цагийн хуваарь ---
   salonOpenHour: Number(process.env.SALON_OPEN_HOUR || 10), // өдөр бүр 10:00
-  salonCloseHour: Number(process.env.SALON_CLOSE_HOUR || 19), // 19:00 хүртэл
+  // Артистууд 20:00 хүртэл ажиллана → сүүлийн 1 цагийн слот 19:00–20:00 (сүүлийн захиалга 19:00).
+  salonCloseHour: Number(process.env.SALON_CLOSE_HOUR || 20),
   slotMinutes: Number(process.env.SLOT_MINUTES || 60), // нэг слотын урт (30мин–1цаг)
   priorityStartHour: Number(process.env.PRIORITY_START_HOUR || 10), // эхэлж санал болгох цонх
   priorityEndHour: Number(process.env.PRIORITY_END_HOUR || 13), // (10:00–13:00)
