@@ -127,6 +127,31 @@ export async function sendServiceCard(psid, service) {
   }
 }
 
+/** Үйлчлүүлэгч рүү дангаар зураг илгээх (URL-ээр). */
+export async function sendImage(psid, url) {
+  if (!config.fbPageAccessToken || !url) return { ok: false, skipped: true };
+  const body = {
+    messaging_type: "RESPONSE",
+    recipient: { id: psid },
+    message: { attachment: { type: "image", payload: { url, is_reusable: true } } },
+  };
+  try {
+    const res = await fetch(`${GRAPH_URL}?access_token=${config.fbPageAccessToken}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      console.error("[messenger] Зураг илгээх алдаа:", res.status, await res.text());
+      return { ok: false, status: res.status };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error("[messenger] Зураг сүлжээний алдаа:", err);
+    return { ok: false, error: String(err) };
+  }
+}
+
 /** "Бичиж байна…" индикатор асаах/унтраах. */
 export async function sendTypingOn(psid) {
   if (!config.fbPageAccessToken) return;

@@ -257,8 +257,10 @@ async function handleAdminPhoto(chatId, msg, photo) {
 
   const caption = msg.caption ? `Зурагтай хамт бичсэн тайлбар: "${msg.caption}". ` : "";
   const note =
-    `[Админ зураг илгээж, Cloudinary-д амжилттай байршлаа. ${caption}` +
-    `Энэ зургийн URL-ийг тохирох үйлчилгээний image талбарт хэрэглэ (create_service/update_service): ${up.url}]`;
+    `[Админ зураг илгээж, Cloudinary-д байршлаа. ${caption}` +
+    `Энэ зургийн URL-ийг ярианы агуулгаас хамаарч ТОХИРОХ газар хэрэглэ: ` +
+    `үйлчилгээний зураг бол create_service/update_service-ийн image талбарт, ` +
+    `мэдлэгийн сангийн хариулт бол add_knowledge/update_knowledge-ийн image талбарт. URL: ${up.url}]`;
   const reply = await handleAdminMessage({ adminId: chatId, text: note });
   await sendTelegram(chatId, reply);
 }

@@ -95,5 +95,5 @@ export async function searchKnowledge(query) {
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 
-  return scored.map((x) => ({ question: x.k.question, answer: x.k.answer }));
+  return scored.map((x) => ({ question: x.k.question, answer: x.k.answer, image: x.k.image || null }));
 }

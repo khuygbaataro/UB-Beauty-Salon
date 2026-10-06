@@ -22,6 +22,7 @@ import { cancelBooking, cancellationMessage } from "../booking/cancellation.js";
 import { suggestSlots, ubDate, ubClock } from "../booking/schedule.js";
 import { suggestServiceSlots, artistsForService } from "../booking/assignment.js";
 import { presentOneService } from "./present.js";
+import { sendImage } from "../messenger/sendApi.js";
 import { escalateQuestion, searchKnowledge } from "../escalation.js";
 
 const MAX_HISTORY = 20;
@@ -304,6 +305,9 @@ async function runTool(name, input, ctx) {
     }
     case "search_knowledge": {
       const results = await searchKnowledge(input.query);
+      // Хэрэв хариултад зураг байвал үйлчлүүлэгч рүү шууд илгээнэ.
+      const withImg = results.find((r) => r.image);
+      if (withImg) await sendImage(ctx.psid, withImg.image).catch(() => {});
       return { found: results.length, results };
     }
     case "escalate_to_staff": {

@@ -144,12 +144,14 @@ const tools = [
   {
     name: "add_knowledge",
     description:
-      "Мэдлэгийн санд асуулт-хариулт ГАРААР нэмэх (FAQ урьдчилан бэлдэх). Customer AI үүнийг хайж олоод үйлчлүүлэгчид шууд хариулна.",
+      "Мэдлэгийн санд асуулт-хариулт ГАРААР нэмэх (FAQ урьдчилан бэлдэх). Зураг хавсаргаж болно " +
+      "(image). Customer AI үүнийг хайж олоод үйлчлүүлэгчид хариулж, зураг байвал илгээнэ.",
     input_schema: {
       type: "object",
       properties: {
         question: { type: "string", description: "Асуулт (жишээ: 'Жирэмсэн үед лазер хийж болох уу?')" },
         answer: { type: "string", description: "Хариулт" },
+        image: { type: "string", description: "Зургийн ХОЛБООС (https://...). Заавал биш." },
       },
       required: ["question", "answer"],
       additionalProperties: false,
@@ -157,13 +159,14 @@ const tools = [
   },
   {
     name: "update_knowledge",
-    description: "Мэдлэгийн сан дахь нэг бичлэгийн асуулт эсвэл хариултыг засах.",
+    description: "Мэдлэгийн сан дахь нэг бичлэгийн асуулт/хариулт/зургийг засах.",
     input_schema: {
       type: "object",
       properties: {
         id: { type: "string", description: "Бичлэгийн id (kb_...)" },
         question: { type: "string" },
         answer: { type: "string" },
+        image: { type: "string", description: "Зургийн ХОЛБООС (https://...)" },
       },
       required: ["id"],
       additionalProperties: false,
@@ -310,8 +313,12 @@ function buildSystemPrompt() {
     `list_timeoff_requests-ээр жагсаа. Шийдвэр автоматаар артист руу (артистын AI-аар) очно.\n` +
     `• МЭДЛЭГИЙН САН: "мэдлэгийн сан харуул" гэвэл list_knowledge-ээр бүгдийг үзүүл. ` +
     `Гараар FAQ нэмэх add_knowledge, засах update_knowledge, устгах delete_knowledge. ` +
-    `Энд хадгалсан асуулт-хариултыг Customer AI автоматаар хайж үйлчлүүлэгчид хариулдаг — ` +
-    `тиймээс түгээмэл асуултуудыг урьдчилан нэмж болно.\n` +
+    `Хариултад ЗУРАГ хавсаргаж болно (image талбар) — админ зураг илгээвэл Customer AI үйлчлүүлэгчид ` +
+    `тэр зургийг илгээнэ. Энд хадгалсан асуулт-хариултыг Customer AI автоматаар хайж хариулдаг — ` +
+    `түгээмэл асуултуудыг урьдчилан нэмж болно.\n` +
+    `• ЗУРАГ ирэхэд: админ зураг илгээхэд URL өгөгдөнө. Ярианы агуулгаас шалтгаалж ` +
+    `ҮЙЛЧИЛГЭЭНИЙ зураг бол create/update_service-ийн image-д, МЭДЛЭГИЙН хариултын зураг бол ` +
+    `add/update_knowledge-ийн image-д хэрэглэ.\n` +
     `• ХУВААРИЙН GOOGLE SHEET: Артистуудын ажиллах хуваарь өөрчлөгдөх бүрт Google Sheet автоматаар ` +
     `шинэчлэгддэг. "хуваарь шинэчил/гарга" гэвэл sync_schedule_sheet-ээр гараар шинэчилж болно.\n` +
     `• ЭНЭ ДОЛОО ХОНОГИЙН ХУВААРЬ: "энэ долоо хоног", "хэн ажиллаж байна", "7 хоногийн хуваарь" гэвэл ` +
@@ -396,11 +403,15 @@ async function runTool(name, input, ctx = {}) {
     }
     case "list_knowledge": {
       const kb = await repository.listKnowledge();
-      return kb.map((k) => ({ id: k.id, question: k.question, answer: k.answer }));
+      return kb.map((k) => ({ id: k.id, question: k.question, answer: k.answer, hasImage: Boolean(k.image) }));
     }
     case "add_knowledge": {
-      const k = await repository.addKnowledge({ question: input.question, answer: input.answer });
-      return { ok: true, id: k.id, note: "Мэдлэгийн санд нэмэгдлээ. Customer AI үүнийг хайж хариулна." };
+      const k = await repository.addKnowledge({
+        question: input.question,
+        answer: input.answer,
+        image: input.image || null,
+      });
+      return { ok: true, id: k.id, hasImage: Boolean(k.image), note: "Мэдлэгийн санд нэмэгдлээ." };
     }
     case "update_knowledge": {
       const { id, ...patch } = input;
