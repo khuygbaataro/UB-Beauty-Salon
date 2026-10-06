@@ -88,17 +88,40 @@ export async function buildBookingsGrid() {
   }
 
   const header = ["Цаг", ...dates.map((d) => `${DAY_LABEL[dayKeyOf(d)]} ${mmdd(d)}`)];
-  const rows = slots.map((t) => [
-    t,
-    ...dates.map((d) => {
-      const arr = byKey.get(`${d} ${t}`) || [];
-      return arr
-        .map((b) => `${b.phone} · ${b.serviceName}${b.artistName ? ` (${b.artistName})` : ""}`)
-        .join("\n");
-    }),
-  ]);
 
-  return { dates, header, rows, title: `${mmdd(dates[0])}–${mmdd(dates[6])}` };
+  const rows = [];
+  const cellServiceIds = []; // [rowIdx][dayIdx] = serviceId | null (нүдний өнгө онооход)
+  const nameById = new Map(); // serviceId -> serviceName (legend-д)
+
+  for (const t of slots) {
+    const textRow = [t];
+    const svcRow = [];
+    for (const d of dates) {
+      const arr = byKey.get(`${d} ${t}`) || [];
+      textRow.push(
+        arr
+          .map((b) => `${b.phone} · ${b.serviceName}${b.artistName ? ` (${b.artistName})` : ""}`)
+          .join("\n"),
+      );
+      svcRow.push(arr.length ? arr[0].serviceId : null);
+      for (const b of arr) if (b.serviceId) nameById.set(b.serviceId, b.serviceName);
+    }
+    rows.push(textRow);
+    cellServiceIds.push(svcRow);
+  }
+
+  // Энэ долоо хоногт тохиолдсон үйлчилгээнүүд (тогтвортой дараалал — өнгө онооход).
+  const orderedServiceIds = [...nameById.keys()].sort();
+
+  return {
+    dates,
+    header,
+    rows,
+    cellServiceIds,
+    orderedServiceIds,
+    serviceNameById: Object.fromEntries(nameById),
+    title: `${mmdd(dates[0])}–${mmdd(dates[6])}`,
+  };
 }
 
 // ───────── Telegram (жижиг, монопэйс) ─────────

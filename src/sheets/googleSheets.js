@@ -13,6 +13,17 @@ import { buildWeekData, weekSheetValues, buildBookingsGrid } from "../schedule/w
 
 const BOOKINGS_TAB = "Захиалга";
 
+// Үйлчилгээ бүрт оноох зөөлөн өнгөнүүд (RGB 0–1).
+const PALETTE = [
+  { red: 0.70, green: 0.87, blue: 1.0 }, // цэнхэр
+  { red: 0.80, green: 0.94, blue: 0.80 }, // ногоон
+  { red: 1.0, green: 0.90, blue: 0.72 }, // улбар шар
+  { red: 0.97, green: 0.80, blue: 0.90 }, // ягаан
+  { red: 0.86, green: 0.82, blue: 0.96 }, // нил ягаан
+  { red: 1.0, green: 0.96, blue: 0.72 }, // шар
+  { red: 0.78, green: 0.93, blue: 0.92 }, // ногоон цэнхэр
+];
+
 /** Google Sheets тохируулагдсан эсэх. */
 export function isSheetsConfigured() {
   return Boolean(config.googleServiceAccountEmail && config.googlePrivateKey && config.googleSheetId);
@@ -95,21 +106,83 @@ export async function syncScheduleToSheet() {
     const schedValues = weekSheetValues(await buildWeekData(), ubNow());
     await writeTab(sheets, first.title, first.sheetId, schedValues);
 
-    // 2) Захиалга → "Захиалга" таб
+    // 2) Захиалга → "Захиалга" таб (үйлчилгээгээр өнгөтэй)
     const bk = await buildBookingsGrid();
-    const bkValues = [
-      [`Энэ долоо хоногийн захиалга: ${bk.title} — шинэчилсэн ${ubNow()}`],
-      bk.header,
-      ...bk.rows,
-    ];
     const bkId = await ensureTab(sheets, BOOKINGS_TAB, meta);
-    await writeTab(sheets, BOOKINGS_TAB, bkId, bkValues);
+    await writeBookingsTab(sheets, bkId, bk);
 
     return { ok: true, rows: schedValues.length - 2, bookings: bk.rows.length };
   } catch (err) {
     console.error("[sheets] sync алдаа:", err?.message || err);
     return { ok: false, error: String(err?.message || err) };
   }
+}
+
+/** "Захиалга" табыг бичиж, нүдийг үйлчилгээгээр будаж, legend нэмэх. */
+async function writeBookingsTab(sheets, sheetId, bk) {
+  const N = bk.rows.length; // цагийн мөрийн тоо
+  const legendStart = 2 + N + 2; // title + header + data + хоосон + "Өнгө:" гарчиг → legend мөрүүд
+  const values = [
+    [`Энэ долоо хоногийн захиалга: ${bk.title} — шинэчилсэн ${ubNow()}`],
+    bk.header,
+    ...bk.rows,
+    [],
+    ["Үйлчилгээний өнгө:"],
+    ...bk.orderedServiceIds.map((id) => [bk.serviceNameById[id]]),
+  ];
+
+  const q = `'${BOOKINGS_TAB}'!`;
+  await sheets.spreadsheets.values.clear({ spreadsheetId: config.googleSheetId, range: `${q}A1:Z1000` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: config.googleSheetId,
+    range: `${q}A1`,
+    valueInputOption: "RAW",
+    requestBody: { values },
+  });
+
+  // Өнгөний map (serviceId -> color).
+  const colorById = {};
+  bk.orderedServiceIds.forEach((id, i) => (colorById[id] = PALETTE[i % PALETTE.length]));
+
+  const requests = [
+    // Толгой мөр тод + хөлдөөх
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: 2 },
+        cell: { userEnteredFormat: { textFormat: { bold: true } } },
+        fields: "userEnteredFormat.textFormat.bold",
+      },
+    },
+    {
+      updateSheetProperties: {
+        properties: { sheetId, gridProperties: { frozenRowCount: 2, frozenColumnCount: 1 } },
+        fields: "gridProperties.frozenRowCount,gridProperties.frozenColumnCount",
+      },
+    },
+  ];
+
+  const paint = (r, c, color) =>
+    requests.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: c, endColumnIndex: c + 1 },
+        cell: { userEnteredFormat: { backgroundColor: color } },
+        fields: "userEnteredFormat.backgroundColor",
+      },
+    });
+
+  // Захиалгатай нүднүүдийг будах (data мөр r, өдрийн багана dayIdx).
+  for (let r = 0; r < N; r++) {
+    for (let dayIdx = 0; dayIdx < bk.cellServiceIds[r].length; dayIdx++) {
+      const id = bk.cellServiceIds[r][dayIdx];
+      if (id && colorById[id]) paint(2 + r, 1 + dayIdx, colorById[id]);
+    }
+  }
+  // Legend-ийн өнгөт нүднүүд.
+  bk.orderedServiceIds.forEach((id, i) => paint(legendStart + i, 0, colorById[id]));
+
+  await sheets.spreadsheets
+    .batchUpdate({ spreadsheetId: config.googleSheetId, requestBody: { requests } })
+    .catch(() => {});
 }
 
 /** Хаана ч await хүлээхгүйгээр чимээгүй шинэчлэх (fire-and-forget). */
