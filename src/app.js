@@ -19,7 +19,7 @@ import { repository } from "./db/repository.js";
 import { resolveReferral, buildGreeting } from "./customer/greeting.js";
 import { presentMainServices, presentOneService } from "./customer/present.js";
 import { handleCustomerMessage, seedGreeting, setReferredService, isNewConversation } from "./customer/customerAgent.js";
-import { handleAdminMessage, isAllowedAdmin, adminHomeText } from "./admin/adminAgent.js";
+import { handleAdminMessage, isAllowedAdmin, adminHomeText, adminSubmenu } from "./admin/adminAgent.js";
 import { handleArtistMessage } from "./artist/artistAgent.js";
 import { sendTelegram } from "./admin/telegramSend.js";
 import { getTelegramFileUrl } from "./admin/telegramFile.js";
@@ -213,8 +213,11 @@ app.post("/admin/telegram", async (req, res) => {
       // Зураг ирлээ → Cloudinary руу жижигрүүлж байршуулаад, URL-ийг Admin AI-д дамжуулна.
       await handleAdminPhoto(chatId, msg, photo);
     } else if (["home", "/home", "цэс"].includes((text || "").trim().toLowerCase())) {
-      // "home" → Admin-ийн үндсэн цэс/танилцуулга
+      // "home" → Admin-ийн үндсэн цэс
       await sendTelegram(chatId, adminHomeText());
+    } else if (adminSubmenu(text)) {
+      // home доторх ангиллын нэр → дэд цэсний дэлгэрэнгүй
+      await sendTelegram(chatId, adminSubmenu(text));
     } else {
       // Асуултын мэдэгдэл рүү Reply хийсэн бол → тухайн асуултад шууд хариулна
       const qid = parseQid(msg.reply_to_message?.text || "");
