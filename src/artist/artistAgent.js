@@ -172,6 +172,28 @@ function resolveWhen(when) {
   return when;
 }
 
+/** "home" цэс — артист/менежер юу хийж чадахыг товч танилцуулна. */
+function artistHomeText(artist) {
+  const base =
+    `Сайн уу, ${artist.name}!\n\n` +
+    `Би чамд дараах зүйлд туслана:\n` +
+    `Ажлын цаг — "Да–Ба 10–20"\n` +
+    `Амрах — "маргааш амарна" / "10–14 амарна"\n` +
+    `Захиалга — "өнөөдрийн захиалга"\n` +
+    `Профайл — "миний мэдээлэл"`;
+  if (artist.role === "manager") {
+    return (
+      base +
+      `\n\nМенежер:\n` +
+      `Бүх артист — "артистууд"\n` +
+      `Ачаалал — "өнөөдөр хэн ажиллаж байна"\n` +
+      `Шинэ артист — "код үүсгэ"\n\n` +
+      `Юу хийх вэ?`
+    );
+  }
+  return base + `\n\nЮу хийх вэ?`;
+}
+
 /** Хуваарийг ойлгомжтой текст болгох. */
 function scheduleText(artist) {
   const sched = artist.weeklySchedule || {};
@@ -401,6 +423,11 @@ export async function handleArtistMessage({ psid, text }) {
   // Идэвхгүй болгосон бол
   if (!artist.active) {
     return "Таны бүртгэл идэвхгүй байна. Менежертэйгээ холбогдоно уу.";
+  }
+
+  // "home" → артист юу хийж чадахыг товч танилцуулна
+  if (["home", "цэс"].includes(text.trim().toLowerCase())) {
+    return artistHomeText(artist);
   }
 
   const tools = artist.role === "manager" ? [...PERSONAL_TOOLS, ...MANAGER_TOOLS] : PERSONAL_TOOLS;
