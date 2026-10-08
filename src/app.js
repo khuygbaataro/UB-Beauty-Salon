@@ -93,29 +93,34 @@ async function handleMessagingEvent(event) {
   const psid = event.sender?.id;
   if (!psid) return;
 
-  // 1) Referral / postback — контентоос ирсэн (аль үйлчилгээ вэ)
+  // 1) Referral / postback / quick-reply (боост зарын товчлуур) — аль үйлчилгээ вэ
   const ref =
     event.referral?.ref ||
     event.postback?.referral?.ref ||
     event.postback?.payload ||
+    event.message?.quick_reply?.payload ||
     event.message?.referral?.ref ||
     null;
 
-  // Шинэ орж ирсэн (postback/referral) → мэндчилгээ
+  // Товчлуур/контент → тухайн үйлчилгээг таних (ref, эс бол товчны гарчиг текстээр)
   if (ref || event.postback) {
-    const { service } = await resolveReferral(ref);
+    let service = (await resolveReferral(ref)).service;
+    if (!service && event.message?.text) {
+      service = await repository.findServiceByRef(event.message.text);
+    }
     if (service) {
-      // Контентоос ирсэн → тэр үйлчилгээг зурагт картаар + дэлгэрэнгүй танилцуулга
+      // Товчлуур/контентоос ирсэн → тэр үйлчилгээг ЗУРАГ + мэдээлэл + "сонирхож байна уу?"-гаар ШУУД
       await setReferredService(psid, service.id);
       await presentOneService(psid, service);
       const greeting = buildGreeting(service);
       await sendText(psid, greeting);
       await seedGreeting(
         psid,
-        `[Контентоос ирсэн: «${service.name}»-г зурагтайгаар танилцуулж, товч тайлбар өгөөд ` +
+        `[Товчлуур/контентоос «${service.name}»-г зурагтайгаар танилцуулж, товч тайлбар өгөөд ` +
           `"сонирхож байна уу?" гэж асуулаа. Хэрэглэгч тийм гэвэл УРСГАЛЫН дагуу үнэ (+ promo байвал 🎁) ` +
           `хэлээд "цаг захиалах уу?" гэж асуу. Богино бич.]`,
       );
+      return; // ✅ үйлчилгээний мэдээлэл шууд өглөө — AI-гаар дахин боловсруулахгүй
     } else {
       // Контент тодорхойгүй / Get Started → НЭГ богино мессежээр үйлчилгээний цэс
       const names = await presentMainServices(psid);
@@ -145,8 +150,22 @@ async function handleMessagingEvent(event) {
       return;
     }
 
-    // Контентоос ирээгүй + анхны холбоо → НЭГ богино мессежээр үйлчилгээний цэс
+    // Контентоос ирээгүй + анхны холбоо
     if (!ref && !event.postback && (await isNewConversation(psid))) {
+      // Эхний мессеж тодорхой үйлчилгээ дурдсан бол шууд тэр үйлчилгээг үзүүлнэ.
+      const svc = await repository.findServiceByRef(event.message.text);
+      if (svc) {
+        await setReferredService(psid, svc.id);
+        await presentOneService(psid, svc);
+        await sendText(psid, buildGreeting(svc));
+        await seedGreeting(
+          psid,
+          `[Анх холбогдож «${svc.name}»-г асуулаа. Зураг + товч тайлбар + "сонирхож байна уу?" өглөө. ` +
+            `Тийм гэвэл үнэ (+promo) хэлээд цаг захиалах уу гэж асуу. Богино бич.]`,
+        );
+        return;
+      }
+      // Үгүй бол → богино мэндчилгээ + үйлчилгээний цэс
       const names = await presentMainServices(psid);
       await seedGreeting(
         psid,
