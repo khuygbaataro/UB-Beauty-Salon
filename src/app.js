@@ -102,6 +102,20 @@ async function handleMessagingEvent(event) {
     event.message?.referral?.ref ||
     null;
 
+  // 🔎 Диагностик: зар/referral эвент ирж буй эсэх, ямар ref ирснийг Vercel log-д тэмдэглэнэ.
+  //    (Зар дарахад бот хариулахгүй бол энэ log-оос эвент ирж буй эсэхийг шалгана.)
+  if (event.referral || event.postback || event.message?.referral) {
+    console.log(
+      "[webhook] referral/postback эвент:",
+      JSON.stringify({
+        source: event.referral?.source || event.message?.referral?.source || event.postback?.referral?.source || null,
+        ref,
+        hasText: Boolean(event.message?.text),
+        quickReply: event.message?.quick_reply?.payload || null,
+      }),
+    );
+  }
+
   // Товчлуур/контент → тухайн үйлчилгээг таних (ref, эс бол товчны гарчиг текстээр)
   if (ref || event.postback) {
     let service = (await resolveReferral(ref)).service;
