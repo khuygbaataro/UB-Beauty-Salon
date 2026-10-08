@@ -31,7 +31,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-03-15"; // deploy-ийг ялгах тэмдэг
+const VERSION = "2026-10-08-1"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
