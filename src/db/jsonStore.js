@@ -8,7 +8,7 @@
 //     мөр солиход хангалттай байхаар зохион байгуулсан.
 // ─────────────────────────────────────────────────────────────
 
-import { seedServices, serviceRank } from "../data/services.js";
+import { seedServices, seedKnowledge, serviceRank } from "../data/services.js";
 
 function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
@@ -26,7 +26,7 @@ export function createJsonStore() {
   const artists = []; // артистууд (хуваарьтай ажилтан)
   const timeOffRequests = []; // артистын амралтын хүсэлт (зөвшөөрөл шаардсан)
   const questions = []; // escalation: ажилтанд дамжуулсан асуултууд
-  const knowledge = []; // мэдлэгийн сан: хариулагдсан Q&A
+  const knowledge = clone(seedKnowledge); // мэдлэгийн сан (урьдчилан бэлдсэн + Q&A)
   const conversations = new Map(); // psid -> messages[]
   const referred = new Map(); // psid -> serviceId
   const settings = new Map(); // ботын тохиргоо (greeting, tone г.м.)

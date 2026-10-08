@@ -17,7 +17,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { Redis } from "@upstash/redis";
-import { seedServices, serviceRank } from "../data/services.js";
+import { seedServices, seedKnowledge, serviceRank } from "../data/services.js";
 import { config } from "../config.js";
 
 const CONV_TTL = 60 * 60 * 24 * 14; // 14 хоног
@@ -33,6 +33,7 @@ function valuesOf(hash) {
 export function createRedisStore() {
   const redis = new Redis({ url: config.redisUrl, token: config.redisToken });
   let seeded = false;
+  let kbSeeded = false;
 
   // Үйлчилгээний seed-ийг нэг удаа оруулах (хоосон бол)
   async function ensureSeeded() {
@@ -44,6 +45,16 @@ export function createRedisStore() {
       await redis.hset("svc", entries);
     }
     seeded = true;
+  }
+
+  // Мэдлэгийн seed бичлэгүүдийг тогтмол id-гаар upsert (нэг удаа, процесст).
+  async function ensureKbSeeded() {
+    if (kbSeeded) return;
+    for (const k of seedKnowledge) {
+      const exists = await redis.hget("kb", k.id);
+      if (!exists) await redis.hset("kb", { [k.id]: { ...k, createdAt: new Date().toISOString() } });
+    }
+    kbSeeded = true;
   }
 
   return {
@@ -252,6 +263,7 @@ export function createRedisStore() {
       return k;
     },
     async listKnowledge() {
+      await ensureKbSeeded();
       return valuesOf(await redis.hgetall("kb"));
     },
     async updateKnowledge(id, patch) {
