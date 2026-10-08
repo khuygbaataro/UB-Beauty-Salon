@@ -41,20 +41,27 @@ function getStore() {
   return store;
 }
 
-/** FB постын ref / ad referral / чөлөөт текстээс үйлчилгээг таних. */
+/** FB постын ref / ad referral / чөлөөт текстээс үйлчилгээг таних.
+ *  Зар/постын ref нь ихэвчлэн hashtag (жишээ "ХОНОГИЙН_ДОТОР_...") хэлбэртэй ирдэг тул
+ *  зай, доогуур зураас, зэрэгцээ тэмдэг зэргийг үл хамааруулж (collapse) тааруулна. */
 async function findServiceByRef(ref) {
   if (!ref) return null;
   const needle = String(ref).toLowerCase().trim();
+  // Тусгаарлагчийг (зай, _, -, #) арилгаж жиших — "green_peel" ≈ "green peel" ≈ "green-peel".
+  const collapse = (x) => String(x).toLowerCase().replace(/[\s_\-#.,!?]+/g, "");
+  const needleC = collapse(needle);
   const services = await getStore().listServices({ activeOnly: true });
 
   // 1) id-аар шууд таарах
-  const byId = services.find((s) => s.id.toLowerCase() === needle);
+  const byId = services.find((s) => s.id.toLowerCase() === needle || collapse(s.id) === needleC);
   if (byId) return byId;
 
-  // 2) refKeys түлхүүрүүдээр хэсэгчилсэн таарал
-  for (const s of services) {
-    const keys = (s.refKeys || []).map((k) => k.toLowerCase());
-    if (keys.some((k) => needle.includes(k) || k.includes(needle))) return s;
+  // 2) refKeys түлхүүрүүдээр хэсэгчилсэн таарал (тусгаарлагч үл хамаарна)
+  if (needleC) {
+    for (const s of services) {
+      const keys = (s.refKeys || []).map(collapse).filter(Boolean);
+      if (keys.some((k) => needleC.includes(k) || k.includes(needleC))) return s;
+    }
   }
   return null;
 }

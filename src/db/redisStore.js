@@ -34,6 +34,7 @@ export function createRedisStore() {
   const redis = new Redis({ url: config.redisUrl, token: config.redisToken });
   let seeded = false;
   let kbSeeded = false;
+  let refKeysSynced = false;
 
   // Үйлчилгээний seed-ийг нэг удаа оруулах (хоосон бол)
   async function ensureSeeded() {
@@ -45,6 +46,28 @@ export function createRedisStore() {
       await redis.hset("svc", entries);
     }
     seeded = true;
+  }
+
+  // Seed дэх шинэ refKeys-ийг аль хэдийн суусан үйлчилгээ рүү нэгтгэх (deploy-safe).
+  // ⚠️ ensureSeeded нь зөвхөн ХООСОН үед seed хийдэг тул, дараа нэмсэн refKeys
+  //    (жишээ шинэ зарын hashtag) production-д хүрэхгүй. Энэ функц түүнийг зөөнө.
+  async function ensureRefKeysSynced() {
+    if (refKeysSynced) return;
+    refKeysSynced = true; // давхар ажиллуулахгүй (алдаа гарсан ч нэг л оролдоно)
+    try {
+      for (const s of seedServices) {
+        if (!s.refKeys?.length) continue;
+        const cur = await redis.hget("svc", s.id);
+        if (!cur) continue;
+        const curKeys = Array.isArray(cur.refKeys) ? cur.refKeys : [];
+        const merged = Array.from(new Set([...curKeys, ...s.refKeys]));
+        if (merged.length !== curKeys.length) {
+          await redis.hset("svc", { [s.id]: { ...cur, refKeys: merged } });
+        }
+      }
+    } catch (err) {
+      console.error("[redis] refKeys sync алдаа:", err);
+    }
   }
 
   // Мэдлэгийн seed бичлэгүүдийг тогтмол id-гаар upsert (нэг удаа, процесст).
@@ -63,6 +86,7 @@ export function createRedisStore() {
     // ───────── Services ─────────
     async listServices({ activeOnly = true } = {}) {
       await ensureSeeded();
+      await ensureRefKeysSynced();
       const arr = valuesOf(await redis.hgetall("svc"));
       return arr
         .filter((s) => (activeOnly ? s.active : true))
