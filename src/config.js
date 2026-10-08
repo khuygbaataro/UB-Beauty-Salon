@@ -84,6 +84,13 @@ export const config = {
   // --- Цагийн бүс ---
   timezone: process.env.TZ || "Asia/Ulaanbaatar",
 
+  // Апп-аас зураг зэрэг статик файл үзүүлэхэд ашиглах нийтийн absolute base URL.
+  // Vercel дээр автомат (VERCEL_PROJECT_PRODUCTION_URL / VERCEL_URL), эсвэл PUBLIC_BASE_URL-ээр дарж болно.
+  publicBaseUrl:
+    unquote(process.env.PUBLIC_BASE_URL) ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ""),
+
   // Байгууллагын мэдээлэл (мессежид хэрэглэнэ)
   salonName: "UB Beauty Salon",
   salonPhone: process.env.SALON_PHONE || "7777-6062", // холбоо барих утас

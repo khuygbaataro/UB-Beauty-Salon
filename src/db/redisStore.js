@@ -34,7 +34,7 @@ export function createRedisStore() {
   const redis = new Redis({ url: config.redisUrl, token: config.redisToken });
   let seeded = false;
   let kbSeeded = false;
-  let refKeysSynced = false;
+  let seedFieldsSynced = false;
 
   // Үйлчилгээний seed-ийг нэг удаа оруулах (хоосон бол)
   async function ensureSeeded() {
@@ -48,25 +48,34 @@ export function createRedisStore() {
     seeded = true;
   }
 
-  // Seed дэх шинэ refKeys-ийг аль хэдийн суусан үйлчилгээ рүү нэгтгэх (deploy-safe).
-  // ⚠️ ensureSeeded нь зөвхөн ХООСОН үед seed хийдэг тул, дараа нэмсэн refKeys
-  //    (жишээ шинэ зарын hashtag) production-д хүрэхгүй. Энэ функц түүнийг зөөнө.
-  async function ensureRefKeysSynced() {
-    if (refKeysSynced) return;
-    refKeysSynced = true; // давхар ажиллуулахгүй (алдаа гарсан ч нэг л оролдоно)
+  // Seed дэх шинэ талбаруудыг (refKeys, images, introText) аль хэдийн суусан
+  // үйлчилгээ рүү зөөх (deploy-safe). ⚠️ ensureSeeded нь зөвхөн ХООСОН үед seed
+  // хийдэг тул дараа нэмсэн/өөрчилсөн эдгээр талбар production-д өөрөө хүрэхгүй.
+  //  • refKeys — seed-ийн шинэ түлхүүрүүдийг НЭГТГЭНЭ (merge; хуучныг устгахгүй).
+  //  • images/introText — админ заддаггүй тул seed-ийн утгыг МӨРДҮҮЛНЭ (overwrite).
+  async function ensureSeedFieldsSynced() {
+    if (seedFieldsSynced) return;
+    seedFieldsSynced = true; // давхар ажиллуулахгүй (алдаа гарсан ч нэг л оролдоно)
     try {
       for (const s of seedServices) {
-        if (!s.refKeys?.length) continue;
         const cur = await redis.hget("svc", s.id);
         if (!cur) continue;
-        const curKeys = Array.isArray(cur.refKeys) ? cur.refKeys : [];
-        const merged = Array.from(new Set([...curKeys, ...s.refKeys]));
-        if (merged.length !== curKeys.length) {
-          await redis.hset("svc", { [s.id]: { ...cur, refKeys: merged } });
+        const patch = {};
+        if (s.refKeys?.length) {
+          const curKeys = Array.isArray(cur.refKeys) ? cur.refKeys : [];
+          const merged = Array.from(new Set([...curKeys, ...s.refKeys]));
+          if (merged.length !== curKeys.length) patch.refKeys = merged;
+        }
+        if (s.images && JSON.stringify(cur.images || null) !== JSON.stringify(s.images)) {
+          patch.images = s.images;
+        }
+        if (s.introText && cur.introText !== s.introText) patch.introText = s.introText;
+        if (Object.keys(patch).length) {
+          await redis.hset("svc", { [s.id]: { ...cur, ...patch } });
         }
       }
     } catch (err) {
-      console.error("[redis] refKeys sync алдаа:", err);
+      console.error("[redis] seed талбар sync алдаа:", err);
     }
   }
 
@@ -86,7 +95,7 @@ export function createRedisStore() {
     // ───────── Services ─────────
     async listServices({ activeOnly = true } = {}) {
       await ensureSeeded();
-      await ensureRefKeysSynced();
+      await ensureSeedFieldsSynced();
       const arr = valuesOf(await redis.hgetall("svc"));
       return arr
         .filter((s) => (activeOnly ? s.active : true))

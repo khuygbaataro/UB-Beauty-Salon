@@ -59,6 +59,20 @@ export const seedServices = [
     image:
       "https://scontent.fuln6-3.fna.fbcdn.net/v/t39.30808-6/788815546_1442849281276512_4563988429454023377_n.jpg?stp=dst-jpg_tt6&cstp=mx1145x1374&ctp=s600x600&_nc_cat=107&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=833d8c&_nc_ohc=8Ez3xNI4pukQ7kNvwELouNa&_nc_oc=Adp_3WQrrcThso4CfwCxRvQLvrIfW0jhOea_8ojx2uchtA-3ODW_uuZCMsmlw14Tmlc&_nc_zt=23&_nc_ht=scontent.fuln6-3.fna&_nc_gid=4OACv8kVZihAxnQxYvF6Ig&_nc_ss=7b2a8&oh=00_AQN20XCdWl5Mi-yuch6N3ItcSpf1Rs1FcIPqQiPRDOZa3g&oe=6AC643EE",
     tagline: "Байгалийн бичил зүүт найрлагатай арьс шинэчлэх арчилгаа 🌿",
+    // Танилцуулахдаа ЭНЭ 4 зургийг (дарааллаар) эхэлж илгээнэ (ганц картын оронд).
+    // Зам нь апп-ын /img (assets/) дотор — үзүүлэхэд config.publicBaseUrl-тэй нийлнэ.
+    images: [
+      "/img/green-peel/gp1.jpg",
+      "/img/green-peel/gp2.jpg",
+      "/img/green-peel/gp3.jpg",
+      "/img/green-peel/gp4.jpg",
+    ],
+    // Зургуудын дараа илгээх танилцуулга текст (эцэст нь сонирхлыг нь асууна).
+    introText:
+      "🌿 GREEN PEEL нь байгалийн гаралтай бичил зүүт найрлагад суурилсан, арьсыг шинэчилж, толигор, эрүүл харагдуулах арчилгаа юм.\n\n" +
+      "Арьсаа шинэчлэн, бүрэн гуужуулсны дараа арьс тань илүү цэвэрхэн, толигор, гэрэлтсэн харагдаж эхэлнэ. ✨ Хамгийн гоё нь үр дүн нь зөвхөн өөрт тань мэдрэгдэхээс гадна таны арьсыг харсан хүмүүс хүртэл \"Ямар гоё болчихоо вэ?\" гэж анзаарахуйц өөрчлөлт мэдрэгддэг.\n\n" +
+      "Арьсаа шинэчилж, илүү гоё, эрүүл харагдуулахыг хүсэж байгаа бол GREEN PEEL танд үнэхээр таалагдах үйлчилгээ байх болно. 🤍\n\n" +
+      "Та GREEN PEEL үйлчилгээнд орж, арьсаа шинэчлэхийг хүсэж байна уу?",
     price: null,
     prepayment: null,
     variants: [],

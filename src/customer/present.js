@@ -9,7 +9,14 @@
 
 import { config } from "../config.js";
 import { repository } from "../db/repository.js";
-import { sendText, sendServiceCard } from "../messenger/sendApi.js";
+import { sendText, sendServiceCard, sendImage } from "../messenger/sendApi.js";
+
+/** Зургийн замыг absolute болгох (/img/... → https://.../img/...). */
+function absImageUrl(rel) {
+  if (!rel) return null;
+  if (/^https?:\/\//i.test(rel)) return rel;
+  return config.publicBaseUrl ? `${config.publicBaseUrl}${rel}` : null;
+}
 
 /** Cold хэрэглэгчид НЭГ богино мессежээр үйлчилгээний цэсийг санал болгох. */
 export async function presentMainServices(psid) {
@@ -28,8 +35,15 @@ export async function presentMainServices(psid) {
   return services.map((s) => s.name);
 }
 
-/** Нэг үйлчилгээг картаар танилцуулах (контентоос ирсэн эсвэл сонирхсон үед). */
+/** Нэг үйлчилгээг танилцуулах (контентоос ирсэн эсвэл сонирхсон үед).
+ *  Хэрэв үйлчилгээнд images[] (олон зураг) байвал тэдгээрийг дараалан илгээнэ,
+ *  эс бол нэг зурагт карт (service.image) илгээнэ. */
 export async function presentOneService(psid, service) {
+  const urls = (service.images || []).map(absImageUrl).filter(Boolean);
+  if (urls.length) {
+    for (const url of urls) await sendImage(psid, url);
+    return;
+  }
   await sendServiceCard(psid, service);
 }
 

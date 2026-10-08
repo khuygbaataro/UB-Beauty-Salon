@@ -14,6 +14,8 @@
 // ─────────────────────────────────────────────────────────────
 
 import express from "express";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { config, warnMissingConfig } from "./config.js";
 import { repository } from "./db/repository.js";
 import { resolveReferral, buildGreeting } from "./customer/greeting.js";
@@ -31,10 +33,16 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-08-1"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-08-2"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
+
+// ───────── Статик зураг (/img) — үйлчилгээний зураг зэрэг repo доторх файлыг үзүүлнэ ─────────
+// assets/ хавтас нь src-ийн хажууд (төслийн үндэс). Vercel дээр vercel.json-ийн
+// functions.includeFiles-ээр lambda-д багтдаг.
+const ASSETS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "../assets");
+app.use("/img", express.static(ASSETS_DIR, { maxAge: "30d", immutable: true }));
 
 // ───────── Health ─────────
 function healthPayload() {
