@@ -110,35 +110,26 @@ async function handleMessagingEvent(event) {
     }
     if (service) {
       // Товчлуур/контентоос ирсэн → тэр үйлчилгээг ЗУРАГ + мэдээлэл + "сонирхож байна уу?"-гаар ШУУД
-      await setReferredService(psid, service.id);
-      await presentOneService(psid, service);
-      const greeting = buildGreeting(service);
-      await sendText(psid, greeting);
-      await seedGreeting(
-        psid,
-        `[Товчлуур/контентоос «${service.name}»-г зурагтайгаар танилцуулж, товч тайлбар өгөөд ` +
-          `"сонирхож байна уу?" гэж асуулаа. Хэрэглэгч тийм гэвэл УРСГАЛЫН дагуу үнэ (+ promo байвал 🎁) ` +
-          `хэлээд "цаг захиалах уу?" гэж асуу. Богино бич.]`,
-      );
+      await presentServiceDirect(psid, service);
       return; // ✅ үйлчилгээний мэдээлэл шууд өглөө — AI-гаар дахин боловсруулахгүй
-    } else {
-      // Контент тодорхойгүй / Get Started → НЭГ богино мессежээр үйлчилгээний цэс
-      const names = await presentMainServices(psid);
-      await seedGreeting(
-        psid,
-        `[Богино мэндчилгээ + үйлчилгээний нэрсийн жагсаалтыг (${names.join(", ")}) НЭГ мессежээр ` +
-          `илгээлээ. Хэрэглэгч сонгоход тухайн үйлчилгээг present_service-ээр зурагтайгаар үзүүлнэ. ` +
-          `Хариултаа БОГИНО байлга.]`,
-      );
     }
+    // Контент тодорхойгүй / Get Started → НЭГ богино мессежээр үйлчилгээний цэс
+    const names = await presentMainServices(psid);
+    await seedGreeting(
+      psid,
+      `[Богино мэндчилгээ + үйлчилгээний нэрсийн жагсаалтыг (${names.join(", ")}) НЭГ мессежээр ` +
+        `илгээлээ. Хэрэглэгч сонгоход тухайн үйлчилгээг present_service-ээр зурагтайгаар үзүүлнэ. ` +
+        `Хариултаа БОГИНО байлга.]`,
+    );
     // Хэрэв зэрэг текст мессеж ирээгүй бол энд дуусна
     if (!event.message?.text) return;
   }
 
   // 2) Энгийн текст мессеж
   if (event.message?.text) {
+    const rawText = event.message.text;
     // "reset" — ярианы түүхийг цэвэрлэж, шинээр мэндчилнэ (туршилтад хялбар)
-    const t = event.message.text.trim().toLowerCase();
+    const t = rawText.trim().toLowerCase();
     if (t === "reset" || t === "/reset") {
       await repository.setConversation(psid, []);
       const names = await presentMainServices(psid);
@@ -150,35 +141,64 @@ async function handleMessagingEvent(event) {
       return;
     }
 
-    // Контентоос ирээгүй + анхны холбоо
-    if (!ref && !event.postback && (await isNewConversation(psid))) {
-      // Эхний мессеж тодорхой үйлчилгээ дурдсан бол шууд тэр үйлчилгээг үзүүлнэ.
-      const svc = await repository.findServiceByRef(event.message.text);
-      if (svc) {
-        await setReferredService(psid, svc.id);
-        await presentOneService(psid, svc);
-        await sendText(psid, buildGreeting(svc));
+    // Контентоос ирээгүй үед (ref/postback-гүй энгийн текст):
+    if (!ref && !event.postback) {
+      // (a) Мессеж нь ТОДОРХОЙ нэг үйлчилгээг нэрлэсэн бол — AI-д найдалгүй ШУУД зурагтайгаар үзүүлнэ.
+      //     (Зар руу хариулахад referral эвент тусдаа ирдэг тул үйлчилгээний нэр нь "хуучин яриа"
+      //      болоод AI руу очиж, AI tool дуудалгүй "мэдээлэл өгье" гээд зогсдог алдааг арилгана.)
+      if (isServicePickText(rawText)) {
+        const svc = await repository.findServiceByRef(rawText);
+        if (svc) {
+          await presentServiceDirect(psid, svc);
+          return;
+        }
+      }
+      // (b) Анхны холбоо (үйлчилгээ нэрлээгүй) → богино мэндчилгээ + үйлчилгээний цэс
+      if (await isNewConversation(psid)) {
+        const names = await presentMainServices(psid);
         await seedGreeting(
           psid,
-          `[Анх холбогдож «${svc.name}»-г асуулаа. Зураг + товч тайлбар + "сонирхож байна уу?" өглөө. ` +
-            `Тийм гэвэл үнэ (+promo) хэлээд цаг захиалах уу гэж асуу. Богино бич.]`,
+          `[Анх холбогдлоо. Богино мэндчилгээ + үйлчилгээний нэрсийг (${names.join(", ")}) НЭГ мессежээр ` +
+            `илгээлээ. Хэрэглэгчийн хариуг хүлээнэ. Сонгосон үйлчилгээг present_service-ээр зурагтайгаар ` +
+            `үзүүлнэ. Хариултаа БОГИНО байлга.]`,
         );
-        return;
+        return; // анхны мэндчилгээ — AI-г дараагийн мессежээс эхлүүлнэ
       }
-      // Үгүй бол → богино мэндчилгээ + үйлчилгээний цэс
-      const names = await presentMainServices(psid);
-      await seedGreeting(
-        psid,
-        `[Анх холбогдлоо. Богино мэндчилгээ + үйлчилгээний нэрсийг (${names.join(", ")}) НЭГ мессежээр ` +
-          `илгээлээ. Хэрэглэгчийн хариуг хүлээнэ. Сонгосон үйлчилгээг present_service-ээр зурагтайгаар ` +
-          `үзүүлнэ. Хариултаа БОГИНО байлга.]`,
-      );
-      return; // анхны мэндчилгээ — AI-г дараагийн мессежээс эхлүүлнэ
     }
 
-    const reply = await handleCustomerMessage({ psid, text: event.message.text });
+    const reply = await handleCustomerMessage({ psid, text: rawText });
     await sendText(psid, reply);
   }
+}
+
+/**
+ * Нэг үйлчилгээг ШУУД (AI-гүйгээр) үзүүлэх: зураг + товч тайлбар + "сонирхож байна уу?".
+ * Referral, товчлуур, эсвэл үйлчилгээний нэр шууд бичсэн бүх тохиолдолд ашиглана.
+ */
+async function presentServiceDirect(psid, service) {
+  await setReferredService(psid, service.id);
+  await presentOneService(psid, service);
+  await sendText(psid, buildGreeting(service));
+  await seedGreeting(
+    psid,
+    `[«${service.name}»-г зураг + товч тайлбар + "сонирхож байна уу?"-гаар танилцууллаа. ` +
+      `Хэрэглэгч тийм гэвэл УРСГАЛЫН дагуу үнэ (+ promo байвал 🎁) хэлээд дараагийн алхам руу шилж. ` +
+      `Богино бич.]`,
+  );
+}
+
+/**
+ * Мессеж нь зөвхөн нэг үйлчилгээг СОНГОСОН (нэрлэсэн) мэт үү?
+ * Богино, тоогүй (утас/цаггүй), асуулт/захиалга/цуцлалтын дохиогүй бол тийм —
+ * тэр тохиолдолд картыг AI-гүйгээр шууд үзүүлнэ. Эс бол (асуулт, захиалгын урсгал) AI рүү.
+ */
+function isServicePickText(text) {
+  const t = String(text || "").trim();
+  if (!t || t.length > 40) return false; // урт өгүүлбэр → AI
+  if (/\d/.test(t)) return false; // утас/цаг оролцсон → захиалгын урсгал → AI
+  // үнэ/захиалга/хаяг/цуцлал зэрэг санаа агуулсан бол AI боловсруулна (карт биш)
+  if (/(үнэ|хэд|захиал|цаг|сул|хаяг|утас|байршил|хямд|бэлэг|цуцл|болих|амралт)/i.test(t)) return false;
+  return true;
 }
 
 // ───────── Facebook webhook баталгаажуулалт (АРТИСТын хуудас) ─────────
