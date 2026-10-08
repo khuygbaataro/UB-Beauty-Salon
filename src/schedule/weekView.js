@@ -7,9 +7,8 @@
 //   • Telegram — жижиг, цэвэрхэн монопэйс хүснэгт (утсанд багтах)
 // ─────────────────────────────────────────────────────────────
 
-import { config } from "../config.js";
 import { repository } from "../db/repository.js";
-import { weekDates, dayKeyOf } from "../booking/schedule.js";
+import { weekDates, dayKeyOf, generateDaySlots } from "../booking/schedule.js";
 
 const DAY_LABEL = { mon: "Да", tue: "Мя", wed: "Лх", thu: "Пү", fri: "Ба", sat: "Бя", sun: "Ня" };
 
@@ -74,11 +73,8 @@ export async function buildBookingsGrid() {
     (b) => b.status !== "cancelled" && dates.includes(b.date),
   );
 
-  // Цагийн мөрүүд (салоны ажиллах цагаар, цаг тутам).
-  const slots = [];
-  for (let h = config.salonOpenHour; h < config.salonCloseHour; h++) {
-    slots.push(`${String(h).padStart(2, "0")}:00`);
-  }
+  // Цагийн мөрүүд — слотын уртаар (30 мин: 10:00, 10:30, ...).
+  const slots = generateDaySlots();
 
   // Огноо+цагаар индекслэх.
   const byKey = new Map();
