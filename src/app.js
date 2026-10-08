@@ -44,6 +44,17 @@ app.use(express.json());
 const ASSETS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "../assets");
 app.use("/img", express.static(ASSETS_DIR, { maxAge: "30d", immutable: true }));
 
+// publicBaseUrl тохируулаагүй (env байхгүй) бол ирж буй хүсэлтээс автоматаар барьж авна.
+// Webhook нь зураг илгээхээс өмнө ирдэг тул энэ нь найдвартай ажиллана.
+app.use((req, _res, next) => {
+  if (!config.publicBaseUrl) {
+    const proto = req.headers["x-forwarded-proto"] || "https";
+    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    if (host) config.publicBaseUrl = `${proto}://${String(host).split(",")[0].trim()}`;
+  }
+  next();
+});
+
 // ───────── Health ─────────
 function healthPayload() {
   let store = "unknown";
