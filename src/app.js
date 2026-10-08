@@ -33,7 +33,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-08-4"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-08-5"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
@@ -42,7 +42,7 @@ app.use(express.json());
 // assets/ хавтас нь src-ийн хажууд (төслийн үндэс). Vercel дээр vercel.json-ийн
 // functions.includeFiles-ээр lambda-д багтдаг.
 const ASSETS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "../assets");
-app.use("/img", express.static(ASSETS_DIR, { maxAge: "30d", immutable: true }));
+app.use("/img", express.static(ASSETS_DIR, { maxAge: "1d" }));
 
 // publicBaseUrl тохируулаагүй (env байхгүй) бол ирж буй хүсэлтээс автоматаар барьж авна.
 // Webhook нь зураг илгээхээс өмнө ирдэг тул энэ нь найдвартай ажиллана.

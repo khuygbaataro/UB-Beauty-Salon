@@ -64,7 +64,7 @@ export const seedServices = [
     images: [
       "/img/green-peel/gp1.jpg",
       "/img/green-peel/gp2.jpg",
-      "/img/green-peel/gp3.jpg",
+      "/img/green-peel/gp3.jpg?v=2", // ?v=2 — Facebook-ийн хуучин (квадрат) cache-ийг даван гарна
       "/img/green-peel/gp4.jpg",
     ],
     // Зургуудын дараа илгээх танилцуулга текст (эцэст нь сонирхлыг нь асууна).
