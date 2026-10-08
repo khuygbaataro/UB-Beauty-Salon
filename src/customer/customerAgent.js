@@ -281,7 +281,14 @@ async function runTool(name, input, ctx) {
       const svc = await repository.getService(input.serviceId);
       if (!svc) return { ok: false, error: "Үйлчилгээ олдсонгүй." };
       await presentOneService(ctx.psid, svc);
-      return { ok: true, presented: svc.name };
+      return {
+        ok: true,
+        presented: svc.name,
+        description: svc.description ?? null,
+        note:
+          "Зурагт карт илгээгдлээ. ОДОО энэ мессежид үйлчилгээний товч тайлбарыг (description-оос 1–2 " +
+          "өгүүлбэр) бичээд, дараа нь 'Та энэ үйлчилгээг сонирхож байна уу?' гэж асуу. Хоосон хариу БҮҮ үлдээ.",
+      };
     }
     case "list_products": {
       const prods = await repository.listProducts({ activeOnly: true });
@@ -386,47 +393,59 @@ export async function handleCustomerMessage({ psid, text }) {
 
   // Tool-calling loop (хамгийн ихдээ 5 эргэлт)
   let reply = "";
-  for (let i = 0; i < 5; i++) {
-    const messages = [{ role: "system", content: system }, ...history];
-    const completion = await createChatCompletion({
-      messages,
-      tools,
-      maxTokens: 1500,
-      model: config.customerModel,
-    });
-    const msg = completion.choices?.[0]?.message;
-    if (!msg) break;
+  let usedTool = false;
+  try {
+    for (let i = 0; i < 5; i++) {
+      const messages = [{ role: "system", content: system }, ...history];
+      const completion = await createChatCompletion({
+        messages,
+        tools,
+        maxTokens: 1500,
+        model: config.customerModel,
+      });
+      const msg = completion.choices?.[0]?.message;
+      if (!msg) break;
 
-    // assistant мессежийг түүхэд нэмэх (tool_calls агуулж болно)
-    const assistantMsg = { role: "assistant", content: msg.content ?? "" };
-    if (msg.tool_calls?.length) assistantMsg.tool_calls = msg.tool_calls;
-    history.push(assistantMsg);
+      // assistant мессежийг түүхэд нэмэх (tool_calls агуулж болно)
+      const assistantMsg = { role: "assistant", content: msg.content ?? "" };
+      if (msg.tool_calls?.length) assistantMsg.tool_calls = msg.tool_calls;
+      history.push(assistantMsg);
 
-    if (!msg.tool_calls?.length) {
-      reply = msg.content || "";
-      break;
-    }
-
-    // tool дуудлага бүрийг гүйцэтгэж, хариуг нэмэх
-    for (const call of msg.tool_calls) {
-      let args = {};
-      try {
-        args = JSON.parse(call.function?.arguments || "{}");
-      } catch {
-        /* буруу JSON — хоосон аргументтэй үргэлжилнэ */
+      if (!msg.tool_calls?.length) {
+        reply = msg.content || "";
+        break;
       }
-      let output;
-      try {
-        output = await runTool(call.function?.name, args, ctx);
-      } catch (err) {
-        output = { ok: false, error: String(err.message || err) };
+
+      // tool дуудлага бүрийг гүйцэтгэж, хариуг нэмэх
+      usedTool = true;
+      for (const call of msg.tool_calls) {
+        let args = {};
+        try {
+          args = JSON.parse(call.function?.arguments || "{}");
+        } catch {
+          /* буруу JSON — хоосон аргументтэй үргэлжилнэ */
+        }
+        let output;
+        try {
+          output = await runTool(call.function?.name, args, ctx);
+        } catch (err) {
+          output = { ok: false, error: String(err.message || err) };
+        }
+        history.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) });
       }
-      history.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) });
     }
+  } catch (err) {
+    // AI/API алдаа → эвдэрсэн түүхийг ХАДГАЛАХГҮЙ, дараагийн мессеж цэвэр эхэлнэ.
+    console.error("[customer] AI алдаа:", err?.message || err);
+    return "Уучлаарай, түр алдаа гарлаа. Дахин бичнэ үү 🌸";
   }
 
   await repository.setConversation(psid, trimHistory(history));
-  return reply || "Уучлаарай, дахин оролдоно уу.";
+  // Tool ажилласан ч бот текст өгөөгүй бол (жишээ зөвхөн карт илгээсэн) эелдэг үргэлжлэл.
+  if (reply) return reply;
+  return usedTool
+    ? "Өөр юу сонирхож байна вэ? 😊"
+    : "Уучлаарай, дахин бичнэ үү.";
 }
 
 /** Шинэ хэрэглэгчийн ярианы түүхийг урьдчилсан мэндчилгээгээр эхлүүлэх. */
