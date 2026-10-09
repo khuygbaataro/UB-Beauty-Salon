@@ -33,7 +33,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-08-5"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-09-1"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
@@ -200,7 +200,8 @@ async function handleMessagingEvent(event) {
     }
 
     const reply = await handleCustomerMessage({ psid, text: rawText });
-    await sendText(psid, reply);
+    // Хоосон хариу (жишээ захиалга баталгаажуулалтыг tool бүрэн илгээчихсэн) бол дахин бичихгүй.
+    if (reply && reply.trim()) await sendText(psid, reply);
   }
 }
 

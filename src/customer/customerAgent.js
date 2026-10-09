@@ -21,8 +21,8 @@ import { createBooking, bookingSummary } from "../booking/booking.js";
 import { cancelBooking, cancellationMessage } from "../booking/cancellation.js";
 import { suggestSlots, ubDate, ubClock } from "../booking/schedule.js";
 import { suggestServiceSlots, artistsForService } from "../booking/assignment.js";
-import { presentOneService, presentProduct } from "./present.js";
-import { sendImage } from "../messenger/sendApi.js";
+import { presentOneService, presentProduct, absImageUrl } from "./present.js";
+import { sendImage, sendText } from "../messenger/sendApi.js";
 import { escalateQuestion, searchKnowledge } from "../escalation.js";
 
 const MAX_HISTORY = 20;
@@ -222,9 +222,8 @@ async function buildSystemPrompt(psid) {
     `(өглөө 10:00–13:00 эхэндээ) идэвхтэй санал болго: "[Өдөр] [цаг]-д танд санал болгож байна, тохирох уу?".\n` +
     `8) ЗАХИАЛАХ (ХУРДАН): Хэрэглэгч тохирно гэмэгц, утсаа (8 оронтой) өгмөгц ТҮРГЭН create_booking дууд. ` +
     `Шаардлагагүй нэмэлт асуулт бүү тавь — хурдан баталгаажуул.\n` +
-    `9) БАТАЛГААЖУУЛАЛТ: Амжилттай бол яг ийм маягаар хэл (үйлчилгээний нэрийг тохируулж, ХАЯГ-ийг ЗААВАЛ нэм):\n` +
-    `"Таны цаг захиалга амжилттай баталгаажлаа.✅\n\nӨөртөө цаг гаргаж, гоо сайхандаа анхаарал ` +
-    `тавихаар шийдсэн танд баяр хүргэе.\n\n📍 Манай хаяг: ${config.salonLocation}\n\nУдахгүй уулзацгаая."\n` +
+    `9) БАТАЛГААЖУУЛАЛТ: create_booking амжилттай болмогц СИСТЕМ баталгаажуулалтын текст, хаяг, ` +
+    `байршлын зургийг АВТОМАТААР илгээнэ. Тиймээс чи ДАХИН баталгаажуулалт/хаяг БҮҮ бич — юу ч бүү нэм.\n` +
     `════════════════════════════════════════\n\n` +
     `НЭМЭЛТ ДҮРЭМ:\n` +
     `• ХАЯГ/БАЙРШИЛ/УТАС: Хэрэглэгч асуувал ШУУД, байгалийн хэлбэрээр хэл (escalate хийхгүй, ` +
@@ -339,13 +338,33 @@ async function runTool(name, input, ctx) {
     }
     case "create_booking": {
       const { booking } = await createBooking({ ...input, psid: ctx.psid });
+
+      // ⬇️ Баталгаажуулалтыг DETERMINISTIC-ээр илгээнэ (AI-ийн алхам алгасахаас сэргийлж):
+      //    1) Баталгаажсан текст + огноо/цаг + ХАЯГ
+      //    2) Байршлын 3 зураг
+      //    3) "Хаягаа зурган хэлбэрээр явууллаа" төгсгөлийн мессеж
+      const confirmText =
+        `Таны «${booking.serviceName}» цаг захиалга амжилттай баталгаажлаа.✅\n\n` +
+        `📅 ${booking.date}, ${booking.time}\n\n` +
+        `Өөртөө цаг гаргаж, гоо сайхандаа анхаарал тавихаар шийдсэн танд баяр хүргэе.\n\n` +
+        `📍 Манай хаяг: ${config.salonLocation}`;
+      await sendText(ctx.psid, confirmText);
+
+      const locUrls = (config.salonLocationImages || []).map(absImageUrl).filter(Boolean);
+      for (const url of locUrls) await sendImage(ctx.psid, url).catch(() => {});
+
+      if (locUrls.length) {
+        await sendText(ctx.psid, "📍 Хаягаа зурган хэлбэрээр бас явууллаа. Удахгүй уулзацгаая 😊");
+      } else {
+        await sendText(ctx.psid, "Удахгүй уулзацгаая 😊");
+      }
+
+      // Бот бүгдийг илгээчихсэн тул AI дахин хариу бичихгүй.
+      ctx.fullyHandled = true;
       return {
         ok: true,
-        summary: bookingSummary(booking),
         bookingId: booking.id,
-        note:
-          "Захиалга баталгаажлаа (урьдчилгаа шаардлагагүй). Баталгаажуулалтын мессежид манай ХАЯГ-ийг ЗААВАЛ " +
-          `хавсарга: 📍 ${config.salonLocation}`,
+        note: "Баталгаажуулалт, хаяг, байршлын зургийг системээс БҮРЭН илгээчихсэн. Чи ДАХИН юу ч БҮҮ бич.",
       };
     }
     case "cancel_booking": {
@@ -441,6 +460,10 @@ export async function handleCustomerMessage({ psid, text }) {
         }
         history.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) });
       }
+
+      // Tool бүх хариуг deterministic-ээр илгээчихсэн бол (жишээ create_booking) —
+      // AI-аар дахин бичихгүй, loop-оос гарна.
+      if (ctx.fullyHandled) break;
     }
   } catch (err) {
     // AI/API алдаа → эвдэрсэн түүхийг ХАДГАЛАХГҮЙ, дараагийн мессеж цэвэр эхэлнэ.
@@ -449,6 +472,9 @@ export async function handleCustomerMessage({ psid, text }) {
   }
 
   await repository.setConversation(psid, trimHistory(history));
+  // Баталгаажуулалтыг (эсвэл бусад deterministic хариуг) tool бүрэн илгээчихсэн бол
+  // нэмэлт текст буцаахгүй (давхардуулахгүй).
+  if (ctx.fullyHandled) return "";
   // Tool ажилласан ч бот текст өгөөгүй бол (жишээ зөвхөн карт илгээсэн) эелдэг үргэлжлэл.
   if (reply) return reply;
   return usedTool

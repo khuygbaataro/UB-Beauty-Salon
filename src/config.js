@@ -97,6 +97,13 @@ export const config = {
   salonLocation:
     process.env.SALON_LOCATION ||
     "Улаанбаатар их дэлгүүрийн зүүн тал, UB Town хотхоны 37-р байр", // байршил/хаяг
+  // Захиалга амжилттай болоход хаягийн текстийн дараа илгээх байршлын зургууд
+  // (апп-ын /img доторх зам; үзүүлэхэд publicBaseUrl-тэй нийлнэ).
+  salonLocationImages: [
+    "/img/location/loc1.jpg", // Их дэлгүүр (чиг баримжаа)
+    "/img/location/loc2.jpg", // Уулзвар (Мах Маркет / шилэн барилга)
+    "/img/location/loc3.jpg", // UB Beauty Salon — 37-р байр (хүрэх цэг)
+  ],
 };
 
 // Хөгжүүлэлтийн үед дутуу тохиргоог анхааруулах (production дээр алдаа заахгүй, зөвхөн log).

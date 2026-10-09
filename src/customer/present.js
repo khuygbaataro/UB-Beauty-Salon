@@ -12,7 +12,7 @@ import { repository } from "../db/repository.js";
 import { sendText, sendServiceCard, sendImage } from "../messenger/sendApi.js";
 
 /** Зургийн замыг absolute болгох (/img/... → https://.../img/...). */
-function absImageUrl(rel) {
+export function absImageUrl(rel) {
   if (!rel) return null;
   if (/^https?:\/\//i.test(rel)) return rel;
   return config.publicBaseUrl ? `${config.publicBaseUrl}${rel}` : null;

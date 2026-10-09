@@ -15,6 +15,7 @@ import { formatMnt } from "../customer/greeting.js";
 import { isValidSlot } from "./schedule.js";
 import { artistsForService, pickArtist } from "./assignment.js";
 import { sendArtistText } from "../messenger/sendApi.js";
+import { notifyAdmins } from "../admin/telegramSend.js";
 import { syncScheduleSafe } from "../sheets/googleSheets.js";
 
 /** Монгол утасны дугаар эсэхийг шалгах (8 оронтой, 6/7/8/9-өөр эхэлнэ). */
@@ -114,9 +115,15 @@ export async function createBooking(p) {
     );
   }
 
-  // Менежер(үүд) рүү БҮХ захиалгын мэдэгдэл илгээх.
+  // Менежер(үүд) рүү БҮХ захиалгын мэдэгдэл илгээх (Facebook артист хуудас).
   await notifyManagersOfBooking(booking, assigned).catch((err) =>
     console.error("[booking] менежер мэдэгдэл алдаа:", err),
+  );
+
+  // Telegram-аар ДАВХАР мэдэгдэл (найдвартай — Facebook-ийн 24ц цонхны хязгааргүй).
+  // Менежер/эзэн Telegram дээр захиалга бүрийг баталгаатай хүлээн авна.
+  await notifyTelegramOfBooking(booking).catch((err) =>
+    console.error("[booking] Telegram мэдэгдэл алдаа:", err),
   );
 
   // Google Sheet-ийн "Захиалга" табыг шинэчлэх.
@@ -142,6 +149,18 @@ async function notifyManagersOfBooking(booking, assigned) {
     if (assigned && m.id === assigned.id) continue; // артист нь менежер бол давхардуулахгүй
     await sendArtistText(m.psid, text, "UPDATE").catch(() => {});
   }
+}
+
+/** Telegram админ/менежер(үүд) рүү шинэ захиалгын мэдэгдэл (найдвартай суваг). */
+async function notifyTelegramOfBooking(booking) {
+  const text =
+    `📋 Шинэ захиалга\n` +
+    `• Үйлчилгээ: ${booking.serviceName}${booking.variantName ? ` (${booking.variantName})` : ""}\n` +
+    `• Огноо: ${booking.date}\n` +
+    `• Цаг: ${booking.time}\n` +
+    `• Утас: ${booking.phone}\n` +
+    `• Артист: ${booking.artistName || "—"}`;
+  return notifyAdmins(text);
 }
 
 /** Оноогдсон артист руу шинэ захиалгын мэдэгдэл илгээх. */
