@@ -15,7 +15,6 @@ import { formatMnt } from "../customer/greeting.js";
 import { isValidSlot } from "./schedule.js";
 import { artistsForService, pickArtist } from "./assignment.js";
 import { sendArtistText } from "../messenger/sendApi.js";
-import { notifyAdmins } from "../admin/telegramSend.js";
 import { syncScheduleSafe } from "../sheets/googleSheets.js";
 
 /** Монгол утасны дугаар эсэхийг шалгах (8 оронтой, 6/7/8/9-өөр эхэлнэ). */
@@ -120,12 +119,6 @@ export async function createBooking(p) {
     console.error("[booking] менежер мэдэгдэл алдаа:", err),
   );
 
-  // Telegram-аар ДАВХАР мэдэгдэл (найдвартай — Facebook-ийн 24ц цонхны хязгааргүй).
-  // Менежер/эзэн Telegram дээр захиалга бүрийг баталгаатай хүлээн авна.
-  await notifyTelegramOfBooking(booking).catch((err) =>
-    console.error("[booking] Telegram мэдэгдэл алдаа:", err),
-  );
-
   // Google Sheet-ийн "Захиалга" табыг шинэчлэх.
   await syncScheduleSafe();
 
@@ -134,10 +127,21 @@ export async function createBooking(p) {
 
 /** Менежер бүр рүү шинэ захиалгын мэдэгдэл (бүх захиалга менежерт очно). */
 async function notifyManagersOfBooking(booking, assigned) {
-  const managers = (await repository.listArtists({ active: true })).filter(
-    (a) => (a.role === "manager" || a.role === "reception") && a.psid,
+  const all = await repository.listArtists({ active: true });
+  const managers = all.filter((a) => (a.role === "manager" || a.role === "reception") && a.psid);
+
+  // 🔎 Диагностик: менежер олдсон эсэх, role/psid төлвийг Vercel log-д тэмдэглэнэ.
+  console.log(
+    "[booking] FB менежер мэдэгдэл:",
+    JSON.stringify({
+      totalActive: all.length,
+      managersWithPsid: managers.length,
+      staff: all.map((a) => ({ name: a.name, role: a.role, hasPsid: Boolean(a.psid) })),
+      hasArtistToken: Boolean(config.artistPageAccessToken),
+    }),
   );
   if (!managers.length) return;
+
   const text =
     `📋 Шинэ захиалга (менежер)\n\n` +
     `• Үйлчилгээ: ${booking.serviceName}${booking.variantName ? ` (${booking.variantName})` : ""}\n` +
@@ -147,20 +151,9 @@ async function notifyManagersOfBooking(booking, assigned) {
     `• Артист: ${booking.artistName || "—"}`;
   for (const m of managers) {
     if (assigned && m.id === assigned.id) continue; // артист нь менежер бол давхардуулахгүй
-    await sendArtistText(m.psid, text, "UPDATE").catch(() => {});
+    const r = await sendArtistText(m.psid, text, "UPDATE").catch((e) => ({ ok: false, error: String(e) }));
+    console.log("[booking] FB менежер илгээлт:", JSON.stringify({ to: m.name, result: r }));
   }
-}
-
-/** Telegram админ/менежер(үүд) рүү шинэ захиалгын мэдэгдэл (найдвартай суваг). */
-async function notifyTelegramOfBooking(booking) {
-  const text =
-    `📋 Шинэ захиалга\n` +
-    `• Үйлчилгээ: ${booking.serviceName}${booking.variantName ? ` (${booking.variantName})` : ""}\n` +
-    `• Огноо: ${booking.date}\n` +
-    `• Цаг: ${booking.time}\n` +
-    `• Утас: ${booking.phone}\n` +
-    `• Артист: ${booking.artistName || "—"}`;
-  return notifyAdmins(text);
 }
 
 /** Оноогдсон артист руу шинэ захиалгын мэдэгдэл илгээх. */

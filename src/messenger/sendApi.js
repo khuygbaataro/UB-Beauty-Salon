@@ -29,7 +29,7 @@ async function postText(token, psid, text, messagingType, tag) {
     if (!res.ok) {
       const errText = await res.text();
       console.error("[messenger] Илгээх алдаа:", res.status, errText);
-      return { ok: false, status: res.status };
+      return { ok: false, status: res.status, error: errText };
     }
     return { ok: true };
   } catch (err) {
