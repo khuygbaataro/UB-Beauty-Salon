@@ -19,7 +19,7 @@ import { createChatCompletion } from "../ai/openai.js";
 import { priceSummary } from "./greeting.js";
 import { createBooking, bookingSummary } from "../booking/booking.js";
 import { cancelBooking, cancellationMessage } from "../booking/cancellation.js";
-import { suggestSlots, ubDate, ubClock } from "../booking/schedule.js";
+import { suggestSlots, ubDate, ubClock, dateRange } from "../booking/schedule.js";
 import { suggestServiceSlots, artistsForService } from "../booking/assignment.js";
 import { presentOneService, presentProduct, absImageUrl } from "./present.js";
 import { sendImage, sendText } from "../messenger/sendApi.js";
@@ -218,10 +218,11 @@ async function buildSystemPrompt(psid) {
     `хамт хэл — promo-г алгасаж "хэзээ ирэх вэ" рүү БҮҮ шилж. (Каталогт promo байхгүй бол бэлэг БҮҮ зохио.) ` +
     `⚠️ "Цаг захиалах уу?" гэж БҮҮ асуу — шууд дараагийн алхам руу шилж.\n` +
     `6) ХЭЗЭЭ ИРЭХ: Үнэ хэлсэн мөрөндөө "Та хэзээ ирж үйлчлүүлэх боломжтой вэ?" гэж асуу.\n` +
-    `7) ЦАГ ИДЭВХТЭЙ САНАЛ БОЛГОХ: Өдрийг мэдмэгц check_availability-ээр (serviceId-тай) сул цаг ав. ` +
-    `Хэрэглэгч ТОДОРХОЙ цаг нэрлэвэл (жишээ "17:00") — тэр цаг 'available' жагсаалтад байвал ТЭР цагийг ` +
-    `зөвшөөрч захиал. Байхгүй бол л өөр цаг санал болго. Хэрэглэгч цаг нэрлээгүй бол 'suggested'-ээс ` +
-    `(өглөө 10:00–13:00 эхэндээ) идэвхтэй санал болго: "[Өдөр] [цаг]-д танд санал болгож байна, тохирох уу?".\n` +
+    `7) ЦАГ ИДЭВХТЭЙ САНАЛ БОЛГОХ: check_availability-ээр (serviceId-тай) сул цаг ав. ⛔ "Сул цаг алга / ` +
+    `өнөөдөр болохгүй" гэж БҮҮ хэл. Систем тухайн өдөр дүүрсэн бол ДАРААГИЙН боломжтой өдрийг (shifted=true, ` +
+    `date=тэр өдөр) автоматаар буцаана — ТҮҮНИЙГ эерэгээр санал болго: "[date]-нд [suggested цагууд] боломжтой ` +
+    `байна, аль нь тохирох вэ?". Хэрэглэгч ТОДОРХОЙ цаг нэрлэвэл (жишээ "17:00") тэр цаг 'available'-д байвал ` +
+    `зөвшөөрч захиал. Хэрэглэгч цаг нэрлээгүй бол 'suggested'-ээс (эхэндээ өглөөний) 2-3 цаг санал болго.\n` +
     `8) ЗАХИАЛАХ (ХУРДАН): Хэрэглэгч тохирно гэмэгц, утсаа (8 оронтой) өгмөгц ТҮРГЭН create_booking дууд. ` +
     `Шаардлагагүй нэмэлт асуулт бүү тавь — хурдан баталгаажуул.\n` +
     `9) БАТАЛГААЖУУЛАЛТ: create_booking амжилттай болмогц СИСТЕМ баталгаажуулалтын текст, хаяг, ` +
@@ -329,20 +330,41 @@ async function runTool(name, input, ctx) {
             "Цаг БҮҮ санал болго. Эелдэгээр боломжгүйг хэлээд escalate_to_staff-аар ажилтанд холбо.",
         };
       }
-      let all, ordered;
-      if (input.serviceId && artists.length) {
-        ({ all, ordered } = await suggestServiceSlots(input.serviceId, input.date));
-      } else {
-        ({ all, ordered } = await suggestSlots(input.date));
+      const getSlots = async (d) =>
+        input.serviceId && artists.length ? await suggestServiceSlots(input.serviceId, d) : await suggestSlots(d);
+
+      // Хүссэн өдрөөс эхлэн ойрын 14 хоногоос ДАРААГИЙН боломжтой (сул цагтай) өдрийг автоматаар олно.
+      // Ингэснээр "сул цаг алга" гэж хэлэхгүй, шууд боломжтой цагийг эерэгээр санал болгоно.
+      const startDate = input.date || ubDate(0);
+      let picked = null;
+      for (const d of dateRange(startDate, 14)) {
+        const { all, ordered } = await getSlots(d);
+        if (all.length) {
+          picked = { date: d, all, ordered };
+          break;
+        }
       }
+      if (!picked) {
+        return {
+          date: startDate,
+          available: [],
+          suggested: [],
+          bookable: false,
+          note: "Ойрын 2 долоо хоногт сул цаг алга байна. Эелдэгээр хэлээд escalate_to_staff-аар ажилтанд холбо.",
+        };
+      }
+      const shifted = picked.date !== startDate;
       return {
-        date: input.date,
-        available: all, // ⬅ тухайн өдрийн БҮХ сул цаг (тодорхой цаг шалгахад таслагдахгүй)
-        suggested: ordered, // проактив санал болгоход (өглөө эхэндээ)
-        bookable: all.length > 0,
-        note: all.length
-          ? "Хэрэглэгч тодорхой цаг нэрлэвэл available дотор байгаа эсэхийг шалгаад тэр цагийг зөвшөөр. Эс бол suggested-ээс санал болго. available-д БАЙХГҮЙ цагийг БҮҮ зөвшөөр."
-          : "Энэ өдөр сул цаг алга. Цаг БҮҮ санал болго — өөр өдөр санал болго эсвэл ажилтанд холбо.",
+        date: picked.date, // ⬅ боломжтой цагтай ӨДӨР (хүссэн өдөр дүүрсэн бол дараагийн нь)
+        requestedDate: startDate,
+        shifted,
+        available: picked.all, // тухайн өдрийн БҮХ сул цаг
+        suggested: picked.ordered, // проактив санал болгоход (өглөө эхэндээ)
+        bookable: true,
+        note: shifted
+          ? `Хүссэн өдөр (${startDate}) сул цаг дүүрсэн тул ДАРААГИЙН боломжтой өдөр (${picked.date})-ийг буцаалаа. ` +
+            `"Сул цаг алга" гэж БҮҮ эхэл. Шууд эерэгээр: "${picked.date}-нд [suggested цагууд] боломжтой байна, аль нь тохирох вэ?" гэж санал болго.`
+          : "Хэрэглэгч тодорхой цаг нэрлэвэл available дотор байгаа эсэхийг шалгаад зөвшөөр. Эс бол suggested-ээс эерэгээр санал болго. available-д БАЙХГҮЙ цагийг БҮҮ зөвшөөр.",
       };
     }
     case "create_booking": {
