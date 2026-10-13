@@ -120,6 +120,11 @@ export const repository = {
   getReferred: (psid) => getStore().getReferred(psid),
   setReferred: (psid, serviceId) => getStore().setReferred(psid, serviceId),
 
+  // Хүн гар аргаар авах (бот түр зогсоох)
+  getPaused: (psid) => getStore().getPaused(psid),
+  setPaused: (psid, seconds) => getStore().setPaused(psid, seconds),
+  clearPaused: (psid) => getStore().clearPaused(psid),
+
   // Тохиргоо (ботын текст/өнгө аяс)
   getSetting: (key) => getStore().getSetting(key),
   setSetting: (key, value) => getStore().setSetting(key, value),

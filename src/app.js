@@ -33,7 +33,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-13-2"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-13-3"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
@@ -109,8 +109,27 @@ app.post("/webhook", async (req, res) => {
 });
 
 async function handleMessagingEvent(event) {
+  // 0a) ECHO — хуудаснаас гарсан мессеж (бот эсвэл хүн). Хүн (ажилтан) Facebook
+  //     inbox-д гараар хариулсан бол → тэр чатад ботыг түр зогсооно (human takeover).
+  if (event.message?.is_echo) {
+    const customerPsid = event.recipient?.id;
+    const appId = event.message.app_id;
+    // app_id байхгүй (эсвэл манай апп биш) = ХҮН гараар бичсэн. Ботын илгээлт app_id-тай → алгасна.
+    const isHuman = !appId || (config.fbAppId && String(appId) !== config.fbAppId);
+    if (customerPsid && isHuman) {
+      await handleHumanTakeover(customerPsid);
+    }
+    return;
+  }
+
   const psid = event.sender?.id;
   if (!psid) return;
+
+  // 0b) Бот түр зогссон (ажилтан гар аргаар авсан) бол — чимээгүй өнгөрүүлнэ.
+  if (await repository.getPaused(psid)) {
+    console.log("[webhook] бот зогссон (human takeover) — алгаслаа:", psid);
+    return;
+  }
 
   // 1) Referral / postback / quick-reply (боост зарын товчлуур) — аль үйлчилгээ вэ
   const ref =
@@ -233,6 +252,23 @@ function isServicePickText(text) {
   // үнэ/захиалга/хаяг/цуцлал зэрэг санаа агуулсан бол AI боловсруулна (карт биш)
   if (/(үнэ|хэд|захиал|цаг|сул|хаяг|утас|байршил|хямд|бэлэг|цуцл|болих|амралт)/i.test(t)) return false;
   return true;
+}
+
+/**
+ * Хүн (ажилтан) Facebook inbox-д гараар хариулсныг мэдээд, тэр чатад ботыг
+ * config.handoffPauseMinutes минутын турш зогсооно. Ажилтан бичих бүрт хугацаа
+ * шинэчлэгдэнэ (сүүлийн мессежээс хойш тоолно). Анх зогсоход л үйлчлүүлэгчид
+ * "ажилтан нэгдлээ" гэж нэг удаа мэдэгдэнэ.
+ */
+async function handleHumanTakeover(psid) {
+  const already = await repository.getPaused(psid);
+  await repository.setPaused(psid, config.handoffPauseMinutes * 60);
+  if (!already) {
+    await sendText(
+      psid,
+      "Таны чатад манай ажилтан нэгдлээ 😊 Та үргэлжлүүлэн асууж болно, шууд хариулж тусална.",
+    ).catch(() => {});
+  }
 }
 
 // ───────── Facebook webhook баталгаажуулалт (АРТИСТын хуудас) ─────────

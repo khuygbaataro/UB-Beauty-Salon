@@ -32,6 +32,12 @@ export const config = {
   fbVerifyToken: process.env.FB_VERIFY_TOKEN || "",
   fbPageAccessToken: process.env.FB_PAGE_ACCESS_TOKEN || "",
   fbAppSecret: process.env.FB_APP_SECRET || "",
+  fbAppId: process.env.FB_APP_ID || "", // хүн/бот echo-г ялгахад (заавал биш)
+
+  // --- Хүн гар аргаар авах (human takeover) ---
+  // Ажилтан Facebook inbox-д үйлчлүүлэгчид гараар хариулмагц бот тэр чатад
+  // энэ хугацаанд (минут) автоматаар зогсоно. Сүүлийн гар мессежээс хойш тоолно.
+  handoffPauseMinutes: Number(process.env.HANDOFF_PAUSE_MINUTES || 10),
 
   // --- Facebook Messenger (АРТИСТын AI — тусдаа хуудас) ---
   // Артистуудад зориулсан тусдаа Facebook Page-ийн токен/verify. Тохируулаагүй бол

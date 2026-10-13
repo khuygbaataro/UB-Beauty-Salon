@@ -324,6 +324,17 @@ export function createRedisStore() {
       if (psid && serviceId) await redis.set(`ref:${psid}`, serviceId, { ex: CONV_TTL });
     },
 
+    // ───────── Хүн гар аргаар авсан (бот түр зогссон) — TTL-тэй ─────────
+    async getPaused(psid) {
+      return Boolean(await redis.get(`pause:${psid}`));
+    },
+    async setPaused(psid, seconds) {
+      if (psid) await redis.set(`pause:${psid}`, "1", { ex: Math.max(1, Math.floor(seconds)) });
+    },
+    async clearPaused(psid) {
+      if (psid) await redis.del(`pause:${psid}`);
+    },
+
     // ───────── Тохиргоо (ботын текст/өнгө аяс) ─────────
     async getSetting(key) {
       return (await redis.hget("settings", key)) ?? null;

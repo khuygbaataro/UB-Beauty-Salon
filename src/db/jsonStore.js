@@ -29,6 +29,7 @@ export function createJsonStore() {
   const knowledge = clone(seedKnowledge); // мэдлэгийн сан (урьдчилан бэлдсэн + Q&A)
   const conversations = new Map(); // psid -> messages[]
   const referred = new Map(); // psid -> serviceId
+  const pausedUntil = new Map(); // psid -> expiryMs (хүн гар аргаар авсан үед бот зогсоно)
   const settings = new Map(); // ботын тохиргоо (greeting, tone г.м.)
 
   return {
@@ -278,6 +279,23 @@ export function createJsonStore() {
     },
     async setReferred(psid, serviceId) {
       if (psid && serviceId) referred.set(psid, serviceId);
+    },
+
+    // ───────── Хүн гар аргаар авсан (бот түр зогссон) — хугацаатай ─────────
+    async getPaused(psid) {
+      const exp = pausedUntil.get(psid);
+      if (!exp) return false;
+      if (Date.now() > exp) {
+        pausedUntil.delete(psid);
+        return false;
+      }
+      return true;
+    },
+    async setPaused(psid, seconds) {
+      if (psid) pausedUntil.set(psid, Date.now() + Math.max(1, seconds) * 1000);
+    },
+    async clearPaused(psid) {
+      if (psid) pausedUntil.delete(psid);
     },
 
     // ───────── Тохиргоо (ботын текст/өнгө аяс) ─────────
