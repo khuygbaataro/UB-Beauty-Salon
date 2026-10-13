@@ -33,7 +33,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-13-4"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-13-5"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
@@ -129,6 +129,19 @@ async function handleMessagingEvent(event) {
   if (await repository.getPaused(psid)) {
     console.log("[webhook] бот зогссон (human takeover) — алгаслаа:", psid);
     return;
+  }
+
+  // 0c) 👍 LIKE/STICKER (текстгүй) — "Тийм/зөвшөөрлөө" гэж үзэж AI-д дамжуулна.
+  //     (Бот "сонирхож байна уу?" гэж асуухад хэрэглэгч лайк дарвал үргэлжлүүлнэ.)
+  if (event.message && !event.message.text && !event.message.quick_reply) {
+    const isSticker =
+      Boolean(event.message.sticker_id) ||
+      (event.message.attachments || []).some((a) => a?.payload?.sticker_id);
+    if (isSticker) {
+      const reply = await handleCustomerMessage({ psid, text: "Тийм 👍" });
+      if (reply && reply.trim()) await sendText(psid, reply);
+      return;
+    }
   }
 
   // 1) Referral / postback / quick-reply (боост зарын товчлуур) — аль үйлчилгээ вэ
