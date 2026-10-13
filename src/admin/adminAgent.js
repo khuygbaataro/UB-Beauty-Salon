@@ -279,6 +279,13 @@ const tools = [
     input_schema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
+    name: "test_manager_notify",
+    description:
+      "Менежер(үүд) рүү туршилтын мэдэгдэл илгээж, хүрсэн эсэхийг (алдааны шалтгаантай нь) шалгах. " +
+      "'менежер мэдэгдэл тест', 'менежерт мэдэгдэл хүрч байна уу' гэх мэт асуувал ашигла.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
     name: "update_artist",
     description:
       "Артист/менежер/ресепшний мэдээлэл шинэчлэх (нэр, role, psid, хийдэг үйлчилгээ, идэвхтэй эсэх). " +
@@ -655,6 +662,33 @@ async function runTool(name, input, ctx = {}) {
         timeOff: a.timeOff || [],
         active: a.active,
       }));
+    }
+    case "test_manager_notify": {
+      const all = await repository.listArtists({ active: true });
+      const managers = all.filter((a) => (a.role === "manager" || a.role === "reception") && a.psid);
+      if (!managers.length) {
+        return {
+          ok: false,
+          note: "role=manager/reception бөгөөд бүртгэлтэй (psid-тэй) менежер олдсонгүй. Доорх жагсаалтаас role/бүртгэлийг шалга.",
+          staff: all.map((a) => ({ name: a.name, role: a.role, hasPsid: Boolean(a.psid) })),
+        };
+      }
+      const msg = "🔔 Туршилтын мэдэгдэл — энэ мессеж танд хүрвэл менежерийн мэдэгдэл зөв ажиллаж байна ✅";
+      const results = [];
+      for (const m of managers) {
+        // Захиалгын мэдэгдэлтэй ИЖИЛ арга: MESSAGE_TAG → алдвал UPDATE.
+        let r = await sendArtistText(m.psid, msg, "MESSAGE_TAG", "ACCOUNT_UPDATE").catch((e) => ({
+          ok: false,
+          error: String(e),
+        }));
+        if (!r.ok) r = await sendArtistText(m.psid, msg, "UPDATE").catch((e) => ({ ok: false, error: String(e) }));
+        results.push({ name: m.name, ok: Boolean(r.ok), error: r.error || null });
+      }
+      return {
+        ok: true,
+        results,
+        note: "ok:true бол тэр менежерт мэдэгдэл хүрсэн. ok:false бол error-ийг хэрэглэгчид энгийнээр тайлбарла (жишээ 24ц цонх / токен / зөвшөөрөл).",
+      };
     }
     case "update_artist": {
       const { artistId, ...patch } = input;

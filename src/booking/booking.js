@@ -151,7 +151,15 @@ async function notifyManagersOfBooking(booking, assigned) {
     `• Артист: ${booking.artistName || "—"}`;
   for (const m of managers) {
     if (assigned && m.id === assigned.id) continue; // артист нь менежер бол давхардуулахгүй
-    const r = await sendArtistText(m.psid, text, "UPDATE").catch((e) => ({ ok: false, error: String(e) }));
+    // MESSAGE_TAG (ACCOUNT_UPDATE) → 24ц цонхыг тойрч гаргана (менежер ойрд бичээгүй ч хүрнэ).
+    // Хэрэв tag амжилтгүй бол (зөвшөөрөл дутуу г.м.) UPDATE-ээр дахин оролдоно (цонх нээлттэй үед).
+    let r = await sendArtistText(m.psid, text, "MESSAGE_TAG", "ACCOUNT_UPDATE").catch((e) => ({
+      ok: false,
+      error: String(e),
+    }));
+    if (!r.ok) {
+      r = await sendArtistText(m.psid, text, "UPDATE").catch((e) => ({ ok: false, error: String(e) }));
+    }
     console.log("[booking] FB менежер илгээлт:", JSON.stringify({ to: m.name, result: r }));
   }
 }
