@@ -172,8 +172,15 @@ async function notifyArtistOfBooking(artist, booking) {
     `• Огноо: ${booking.date}\n` +
     `• Цаг: ${booking.time}\n` +
     `• Үйлчлүүлэгчийн утас: ${booking.phone}`;
-  // UPDATE: 24 цагийн дотор идэвхтэй мессеж (tag/App Review шаардахгүй).
-  return sendArtistText(artist.psid, text, "UPDATE");
+  // MESSAGE_TAG (ACCOUNT_UPDATE) → 24ц цонхыг тойрно (артист Tester бол/App Review-ийн дараа).
+  // Амжилтгүй бол UPDATE-ээр нөхнө (цонх нээлттэй үед).
+  let r = await sendArtistText(artist.psid, text, "MESSAGE_TAG", "ACCOUNT_UPDATE").catch((e) => ({
+    ok: false,
+    error: String(e),
+  }));
+  if (!r.ok) r = await sendArtistText(artist.psid, text, "UPDATE").catch((e) => ({ ok: false, error: String(e) }));
+  console.log("[booking] FB артист илгээлт:", JSON.stringify({ to: artist.name, result: r }));
+  return r;
 }
 
 /** Захиалга баталгаажсан (урьдчилгаа төлсөн) гэж тэмдэглэх. */
