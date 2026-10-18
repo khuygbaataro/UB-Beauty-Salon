@@ -380,6 +380,37 @@ const tools = [
     },
   },
   {
+    name: "set_artist_schedule",
+    description:
+      "Артистын 7 хоногийн АЖИЛЛАХ ХУВААРЬ эсвэл амрах огноог тохируулах. Жишээ 'Болдын хуваарийг " +
+      "Даваа-Баасан 10:00-18:00 болго'. weeklySchedule нь өдрийн түлхүүр бүрт {start,end} (HH:MM). " +
+      "АМРАХ өдрийг оруулахгүй (хасна). timeOff — тодорхой амрах огноонууд.",
+    input_schema: {
+      type: "object",
+      properties: {
+        artistId: { type: "string" },
+        weeklySchedule: {
+          type: "object",
+          description:
+            "Өдрийн түлхүүр (mon,tue,wed,thu,fri,sat,sun) → {start:'10:00', end:'18:00'}. Ажиллахгүй өдрийг БҮҮ оруул.",
+          properties: {
+            mon: { type: "object", properties: { start: { type: "string" }, end: { type: "string" } } },
+            tue: { type: "object", properties: { start: { type: "string" }, end: { type: "string" } } },
+            wed: { type: "object", properties: { start: { type: "string" }, end: { type: "string" } } },
+            thu: { type: "object", properties: { start: { type: "string" }, end: { type: "string" } } },
+            fri: { type: "object", properties: { start: { type: "string" }, end: { type: "string" } } },
+            sat: { type: "object", properties: { start: { type: "string" }, end: { type: "string" } } },
+            sun: { type: "object", properties: { start: { type: "string" }, end: { type: "string" } } },
+          },
+          additionalProperties: false,
+        },
+        timeOff: { type: "array", items: { type: "string" }, description: "Амрах огноонууд (YYYY-MM-DD)" },
+      },
+      required: ["artistId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "list_timeoff_requests",
     description: "Артистуудын зөвшөөрөл хүлээж буй (pending) амралтын хүсэлтүүдийг харах.",
     input_schema: { type: "object", properties: {}, additionalProperties: false },
@@ -583,9 +614,13 @@ async function buildSystemPrompt() {
     `• БАРАА БҮТЭЭГДЭХҮҮН (үйлчилгээнээс ТУСДАА — дэлгүүрт зарагддаг тос/маск г.м.): нэмэх create_product, ` +
     `засах update_product, устгах delete_product, жагсаах list_products. Үйлчилгээ vs бараа хоёрыг ` +
     `бүү андуур — "үйлчилгээ" нь салонд үзүүлдэг (лазер, GREEN PEEL), "бараа" нь зарж буй эд юм.\n` +
-    `• Код өгсний дараа: хүн артистын Facebook хуудас руу кодоо илгээхэд бүртгэл идэвхжиж, өөрөө хуваараа тохируулна. ` +
+    `• Код өгсний дараа: хүн артистын Facebook хуудас руу кодоо илгээхэд бүртгэл идэвхжиж, өөрөө хуваараа тохируулж болно. ` +
     `Артистын хийдэг үйлчилгээг өөрчлөхдөө update_artist-ийн serviceIds-г ашигла. ` +
     `list_artists-ээр бүгдийг жагсаана. (invalidServiceIds буцвал тэр id буруу — засаж дахин оролд.)\n` +
+    `• АРТИСТЫН ХУВААРЬ ТОХИРУУЛАХ (admin ч хийж болно): "X-ийн хуваарийг Даваа-Баасан 10:00-18:00 болго", ` +
+    `"X-ийг маргааш амраана" гэвэл set_artist_schedule-ээр тохируул. Өдрийн түлхүүр: mon,tue,wed,thu,fri,sat,sun. ` +
+    `Ажиллах өдрүүдийг л weeklySchedule-д оруул (амрах өдрийг хас). Тодорхой амрах өдрийг timeOff (YYYY-MM-DD)-д нэм. ` +
+    `Шинэчилмэгц сул цагийн тооцоо, Google Sheet шууд шинэчлэгдэнэ.\n` +
     `• АМРАЛТЫН ЗӨВШӨӨРӨЛ: Артист 3-аас дээш хоног амрах хүсэл гаргавал энд долоо хоногийн хуваарь, ` +
     `хүсэлт, 🆔 (tor_...)-тай мэдэгдэл ирнэ. Админ «батал tor_xxx» гэвэл decide_timeoff(requestId=tor_xxx, ` +
     `approve=true), «татгалз tor_xxx» гэвэл approve=false-оор дууд. "амралтын хүсэлтүүд" гэвэл ` +
@@ -810,6 +845,22 @@ async function runTool(name, input, ctx = {}) {
         ok: true,
         artist: { id: updated.id, name: updated.name, role: updated.role, serviceIds: updated.serviceIds, active: updated.active },
         invalidServiceIds: invalid,
+      };
+    }
+    case "set_artist_schedule": {
+      const patch = {};
+      if (input.weeklySchedule) patch.weeklySchedule = input.weeklySchedule;
+      if (input.timeOff) patch.timeOff = input.timeOff;
+      if (!Object.keys(patch).length) return { ok: false, error: "Хуваарь эсвэл амрах огноо өгнө үү." };
+      const updated = await repository.updateArtist(input.artistId, patch);
+      if (!updated) return { ok: false, error: "Артист олдсонгүй." };
+      await syncScheduleSafe();
+      return {
+        ok: true,
+        artist: updated.name,
+        weeklySchedule: updated.weeklySchedule,
+        timeOff: updated.timeOff,
+        note: "Хуваарь шинэчлэгдэж, Google Sheet-д тусгагдлаа. Хэрэглэгчийн ботын сул цагийн тооцоонд шууд орно.",
       };
     }
     case "set_bot_text": {
