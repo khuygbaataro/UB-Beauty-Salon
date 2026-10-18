@@ -33,7 +33,9 @@ function escHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-const artistConversations = new Map(); // psid -> messages[]  (TODO: DB)
+// Артистын ярианы түүхийг Redis-д хадгална (conv:artist:<psid>) — Vercel cold
+// start/зэрэгцээ instance дээр ч тогтвортой.
+const artistConvKey = (psid) => `artist:${psid}`;
 const MAX_HISTORY = 20;
 
 const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -487,8 +489,8 @@ export async function handleArtistMessage({ psid, text }) {
 
   const isStaff = artist.role === "manager" || artist.role === "reception";
   const tools = isStaff ? [...PERSONAL_TOOLS, ...MANAGER_TOOLS] : PERSONAL_TOOLS;
-  // ⚠️ Хадгалсан түүхийг ХУУЛЖ, эхнээс нь цэвэрлэнэ (reference-ээр эвдэхгүй).
-  const history = sanitizeHistory([...(artistConversations.get(psid) || [])]);
+  // ⚠️ Хадгалсан түүхийг Redis-ээс ХУУЛЖ, эхнээс нь цэвэрлэнэ (reference-ээр эвдэхгүй).
+  const history = sanitizeHistory([...(await repository.getConversation(artistConvKey(psid)))]);
   history.push({ role: "user", content: text });
 
   const system = buildSystemPrompt(artist);
@@ -526,14 +528,14 @@ export async function handleArtistMessage({ psid, text }) {
     }
   } catch (err) {
     console.error("[artist] AI алдаа:", err?.message || err);
-    artistConversations.delete(psid);
+    await repository.setConversation(artistConvKey(psid), []).catch(() => {});
     return "Түр алдаа гарлаа. Дахин бичнэ үү.";
   }
 
   if (reply) {
-    artistConversations.set(psid, sanitizeHistory(history).slice(-MAX_HISTORY));
+    await repository.setConversation(artistConvKey(psid), sanitizeHistory(history).slice(-MAX_HISTORY));
   } else {
-    artistConversations.delete(psid);
+    await repository.setConversation(artistConvKey(psid), []).catch(() => {});
   }
   return reply || "Ойлгосон.";
 }

@@ -23,7 +23,9 @@ import { syncScheduleSafe, syncScheduleToSheet, isSheetsConfigured } from "../sh
 import { sendTelegram } from "./telegramSend.js";
 import { buildWeekData, weekTelegramText } from "../schedule/weekView.js";
 
-const adminConversations = new Map(); // adminId -> messages[]  (TODO: DB)
+// Админы ярианы түүхийг Redis-д хадгална (conv:admin:<id>) — Vercel cold start/
+// зэрэгцээ instance дээр ч тогтвортой. (Customer боттой ижил repository ашиглана.)
+const adminConvKey = (adminId) => `admin:${adminId}`;
 const MAX_HISTORY = 20;
 
 const tools = [
@@ -804,8 +806,8 @@ function sanitizeHistory(h) {
 }
 
 export async function handleAdminMessage({ adminId, text }) {
-  // ⚠️ Хадгалсан түүхийг ХУУЛЖ авна (reference-ээр өөрчилж эвдэхгүйн тулд).
-  const history = sanitizeHistory([...(adminConversations.get(adminId) || [])]);
+  // ⚠️ Хадгалсан түүхийг Redis-ээс авч ХУУЛНА (reference-ээр өөрчилж эвдэхгүйн тулд).
+  const history = sanitizeHistory([...(await repository.getConversation(adminConvKey(adminId)))]);
   history.push({ role: "user", content: text });
 
   const system = buildSystemPrompt();
@@ -837,16 +839,16 @@ export async function handleAdminMessage({ adminId, text }) {
   } catch (err) {
     // AI/API алдаа → эвдэрсэн түүхийг ХАДГАЛАХГҮЙ, цэвэрлэж өөрөө эдгэнэ.
     console.error("[admin] AI алдаа:", err?.message || err);
-    adminConversations.delete(adminId);
+    await repository.setConversation(adminConvKey(adminId), []).catch(() => {});
     return "Түр алдаа гарлаа. Дахин бичнэ үү.";
   }
 
   // Зөвхөн ЦЭВЭР төлөв (assistant текстээр дууссан) хадгална. Tool-ээр дуусвал
   // (reply хоосон) дутуу/эвдэрсэн дараалал үлдэхээс сэргийлж цэвэрлэнэ.
   if (reply) {
-    adminConversations.set(adminId, sanitizeHistory(history).slice(-MAX_HISTORY));
+    await repository.setConversation(adminConvKey(adminId), sanitizeHistory(history).slice(-MAX_HISTORY));
   } else {
-    adminConversations.delete(adminId);
+    await repository.setConversation(adminConvKey(adminId), []).catch(() => {});
   }
   return reply || "Ойлгосон.";
 }
