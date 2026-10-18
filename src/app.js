@@ -33,7 +33,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-18-5"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-18-6"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
@@ -218,8 +218,10 @@ async function handleMessagingEvent(event) {
           return;
         }
       }
-      // (b) Анхны холбоо (үйлчилгээ нэрлээгүй) → богино мэндчилгээ + үйлчилгээний цэс
-      if (await isNewConversation(psid)) {
+      // (b) Анх холбогдсон үед: ЗӨВХӨН мэндчилгээ/ерөнхий хүсэлт бол богино мэндчилгээ + цэс.
+      //     Тодорхой асуулт (хаяг хаана, үнэ хэд, цаг гэх мэт) бол AI-д шилжүүлж БАЙГАЛИЙН хариу өгнө
+      //     (цэс рүү бүү түлх — хүнтэй ярьж байгаа мэт).
+      if ((await isNewConversation(psid)) && isGreetingOrVague(rawText)) {
         const names = await presentMainServices(psid);
         await seedGreeting(
           psid,
@@ -265,6 +267,21 @@ function isServicePickText(text) {
   // үнэ/захиалга/хаяг/цуцлал зэрэг санаа агуулсан бол AI боловсруулна (карт биш)
   if (/(үнэ|хэд|захиал|цаг|сул|хаяг|утас|байршил|хямд|бэлэг|цуцл|болих|амралт)/i.test(t)) return false;
   return true;
+}
+
+/**
+ * Мессеж нь зүгээр мэндчилгээ / ерөнхий "ямар үйлчилгээ байна" хүсэлт үү?
+ * Тийм бол анх холбогдоход цэс үзүүлнэ. Үгүй бол (тодорхой асуулт — хаяг/үнэ г.м.)
+ * AI-д шилжүүлж байгалийн хариу өгнө (цэс рүү түлэхгүй).
+ */
+function isGreetingOrVague(text) {
+  const t = String(text || "").trim().toLowerCase();
+  if (!t || t.length <= 3) return true; // "уу", "hi", "за", "sain"
+  if (/(сайн ?байна ?уу|сайн ?уу|сайнуу|байна ?уу|мэнд|өглөөний мэнд|hello|^hi\b|^hey\b|^sain)/i.test(t)) return true;
+  // Ерөнхий үйлчилгээ/мэдээлэл хүсэлт
+  if (/(ямар.{0,4}(үйлчилгээ|уйлчилгээ|service)|үйлчилгээ.{0,4}байна|мэдээлэл ав|юу байдаг|what.{0,6}service)/i.test(t))
+    return true;
+  return false;
 }
 
 /**

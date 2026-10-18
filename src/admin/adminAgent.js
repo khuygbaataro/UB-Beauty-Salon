@@ -16,6 +16,7 @@ import { repository } from "../db/repository.js";
 import { createMessage, extractText, extractToolUses } from "../ai/anthropic.js";
 import { createBooking, confirmBooking } from "../booking/booking.js";
 import { cancelBooking } from "../booking/cancellation.js";
+import { suggestServiceSlots } from "../booking/assignment.js";
 import { answerQuestion } from "../escalation.js";
 import { createArtistInvite } from "../artist/registration.js";
 import { sendArtistText } from "../messenger/sendApi.js";
@@ -220,15 +221,19 @@ const tools = [
   {
     name: "add_booking",
     description:
-      "Гараар цаг захиалга бүртгэх (утсаар/биечлэн ирсэн). confirmed=true бол баталгаажсан гэж тэмдэглэнэ.",
+      "Гараар цаг захиалга бүртгэх (утсаар/биечлэн ирсэн). Систем тухайн цаг СУЛ эсэхийг шалгаад, " +
+      "дүүрсэн бол сануулна (давхар захиалгаас сэргийлнэ). Дүүрсэн ч ЗААВАЛ оруулах бол force=true. " +
+      "Тодорхой артистад оруулах бол artistId. confirmed=true бол баталгаажсан гэж тэмдэглэнэ.",
     input_schema: {
       type: "object",
       properties: {
         phone: { type: "string" },
         serviceId: { type: "string" },
         variantId: { type: "string" },
+        artistId: { type: "string", description: "Тодорхой артист (заавал биш; байхгүй бол автоматаар сул артист)" },
         date: { type: "string", description: "YYYY-MM-DD" },
         time: { type: "string", description: "HH:mm" },
+        force: { type: "boolean", description: "Дүүрсэн цагийг ч ЗААВАЛ оруулах (давхар захиалга зөвшөөрнө)" },
         confirmed: { type: "boolean", description: "Урьдчилгаа төлсөн эсэх" },
       },
       required: ["phone", "serviceId", "date", "time"],
@@ -582,7 +587,10 @@ async function buildSystemPrompt() {
     `(4) зураг — админ зургаа Telegram-аар ШУУД илгээж болно (систем Cloudinary-д байршуулаад URL-ийг ` +
     `өгнө), эсвэл https:// холбоос хэлж болно, (5) үргэлжлэх хугацаа минутаар. Бүгдийг авсны дараа create_service/` +
     `update_service-ийг дууд, дараа нь оруулсан утгуудыг эргэн баталгаажуулж хэл.\n` +
-    `• Захиалга бүртгэхэд утас, үйлчилгээ (list_services-ийн id), огноо, цаг заавал хэрэгтэй.\n` +
+    `• Захиалга бүртгэхэд утас, үйлчилгээ (list_services-ийн id), огноо, цаг заавал хэрэгтэй. ` +
+    `⛔ Систем тухайн цаг СУЛ эсэхийг шалгана — add_booking нь slotFull:true буцаавал тэр цаг ДҮҮРСЭН ` +
+    `гэсэн үг. Тэр үед давхар БҮҮ бүртгэ: сул цагуудыг (suggested) санал болго. Хэрэв ажилтан "заавал/давхар ` +
+    `оруул" гэж тодорхой хэлвэл л force=true-ээр дахин дууд.\n` +
     `• Захиалга ЦУЦЛАХ: list_bookings-ээр олоод, cancel_booking-оор bookingId-аар цуцал. Олныг ` +
     `дараалан цуцал. Цуцалсан цаг сул болно; үйлчлүүлэгч рүү мессеж илгээхгүй.\n` +
     `• Үйлчлүүлэгчийн асуулт (open questions) ирвэл list_open_questions-ээр хараад answer_question-аар ` +
@@ -718,10 +726,33 @@ async function runTool(name, input, ctx = {}) {
       return { ok: true, deleted: prod.name, note: "Бараа устгагдлаа." };
     }
     case "add_booking": {
-      // override:true — ажилтан гараар оруулах тул слот шалгалтыг алгасна
-      const { booking } = await createBooking({ ...input, override: true });
-      if (input.confirmed) await confirmBooking(booking.id);
-      return { ok: true, bookingId: booking.id, date: booking.date, time: booking.time };
+      // override:true — ажлын цагийн гадна ч гараар оруулж болно. Гэхдээ БАГТААМЖ шалгана
+      // (дүүрсэн цагийг давхар авахгүй). force=true бол дүүрсэн ч заавал оруулна.
+      try {
+        const { booking } = await createBooking({ ...input, override: true, allowFull: Boolean(input.force) });
+        if (input.confirmed) await confirmBooking(booking.id);
+        return {
+          ok: true,
+          bookingId: booking.id,
+          date: booking.date,
+          time: booking.time,
+          artist: booking.artistName || null,
+        };
+      } catch (err) {
+        if (err.slotFull) {
+          const { ordered } = await suggestServiceSlots(input.serviceId, input.date).catch(() => ({ ordered: [] }));
+          return {
+            ok: false,
+            slotFull: true,
+            error: err.message,
+            suggested: ordered,
+            note:
+              "Энэ цаг ДҮҮРСЭН байна — давхар захиалгаас сэргийлж оруулаагүй. Админд сул цагийг санал болго, " +
+              "эсвэл 'заавал оруул/давхар болгож оруул' гэвэл force=true-ээр дахин дууд.",
+          };
+        }
+        return { ok: false, error: err.message };
+      }
     }
     case "list_bookings": {
       const bookings = await repository.listBookings(input || {});

@@ -12,7 +12,7 @@
 import { config } from "../config.js";
 import { repository } from "../db/repository.js";
 import { formatMnt } from "../customer/greeting.js";
-import { isValidSlot } from "./schedule.js";
+import { isValidSlot, artistBookedTimes } from "./schedule.js";
 import { artistsForService, pickArtist } from "./assignment.js";
 import { sendArtistText } from "../messenger/sendApi.js";
 import { syncScheduleSafe } from "../sheets/googleSheets.js";
@@ -56,27 +56,40 @@ export async function createBooking(p) {
   // ачаалалтай артистыг автоматаар сонгоно.
   let assigned = null;
 
-  // Слот шалгах (admin override=true үед алгасна)
-  if (!p.override) {
-    if (!isValidSlot(p.time)) {
-      throw new Error(
-        `Сонгосон цаг ажиллах цагийн гадна байна. Бид ${config.salonOpenHour}:00–${config.salonCloseHour}:00 цагт ажилладаг.`,
-      );
-    }
+  // (1) Ажиллах цагийн шалгалт — admin override=true үед л алгасна (гараар ямар ч цагт оруулж болно).
+  if (!p.override && !isValidSlot(p.time)) {
+    throw new Error(
+      `Сонгосон цаг ажиллах цагийн гадна байна. Бид ${config.salonOpenHour}:00–${config.salonCloseHour}:00 цагт ажилладаг.`,
+    );
+  }
 
+  // (2) Артист оноох + БАГТААМЖ шалгах — admin ч гэсэн ЗААВАЛ (давхар захиалгаас сэргийлнэ).
+  if (p.artistId) {
+    // Admin тодорхой артист зааж өгсөн.
+    assigned = await repository.getArtist(p.artistId);
+    // Тэр артист тэр цагт аль хэдийн завгүй бол сануулна (force-гүй бол).
+    if (assigned && !p.allowFull) {
+      const taken = await artistBookedTimes(assigned.id, p.date);
+      if (taken.includes(p.time)) {
+        const err = new Error(`${assigned.name} ${p.date} ${p.time}-д аль хэдийн завгүй байна.`);
+        err.slotFull = true;
+        throw err;
+      }
+    }
+  } else {
     const artists = await artistsForService(service.id);
-    // ⛔ ХАТУУ ДҮРЭМ: үйлчилгээнд артист байхгүй бол захиалах боломжгүй.
-    if (!artists.length) {
+    if (artists.length) {
+      // Сул, хамгийн бага ачаалалтай артистыг сонгоно (өнгөрсөн цаг автоматаар хасагдсан).
+      assigned = await pickArtist(service.id, p.date, p.time);
+      if (!assigned && !p.allowFull) {
+        const err = new Error("Энэ цаг дүүрсэн (бүх артист завгүй). Өөр цаг сонгоно уу.");
+        err.slotFull = true;
+        throw err;
+      }
+    } else if (!p.override) {
+      // ⛔ Customer талд: үйлчилгээнд артист байхгүй бол захиалах боломжгүй.
       throw new Error("Энэ үйлчилгээнд одоогоор артист бүртгэгдээгүй тул цаг захиалах боломжгүй.");
     }
-    // Сул, хамгийн бага ачаалалтай артистыг сонгоно (өнгөрсөн цаг автоматаар хасагдсан).
-    assigned = await pickArtist(service.id, p.date, p.time);
-    if (!assigned) {
-      throw new Error("Энэ цагт сул артист алга байна. Өөр цаг сонгоно уу.");
-    }
-  } else if (p.artistId) {
-    // Admin гараар оруулахдаа тодорхой артист зааж болно.
-    assigned = await repository.getArtist(p.artistId);
   }
 
   // Үнэ/урьдчилгаа (одоогоор урьдчилгаагүй тул prepayment=null)
