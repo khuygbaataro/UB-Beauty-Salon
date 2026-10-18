@@ -66,10 +66,9 @@ export function createRedisStore() {
           const merged = Array.from(new Set([...curKeys, ...s.refKeys]));
           if (merged.length !== curKeys.length) patch.refKeys = merged;
         }
-        if (s.images && JSON.stringify(cur.images || null) !== JSON.stringify(s.images)) {
-          patch.images = s.images;
-        }
-        if (s.introText && cur.introText !== s.introText) patch.introText = s.introText;
+        // images/introText — зөвхөн БАЙХГҮЙ үед seed-ээс нэмнэ (админ Telegram-аас засвал дарж бичихгүй).
+        if (s.images && !(Array.isArray(cur.images) && cur.images.length)) patch.images = s.images;
+        if (s.introText && !cur.introText) patch.introText = s.introText;
         if (Object.keys(patch).length) {
           await redis.hset("svc", { [s.id]: { ...cur, ...patch } });
         }

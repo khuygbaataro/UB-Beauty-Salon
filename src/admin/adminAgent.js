@@ -52,6 +52,47 @@ const tools = [
         description: { type: "string" },
         notes: { type: "string", description: "Ботын дагах тусгай заавар (чөлөөт)" },
         active: { type: "boolean" },
+        variants: {
+          type: "array",
+          description:
+            "Үнийн хувилбарууд (жишээ лазер — хэсэг тус бүр). ⚠️ Нэгийг засахдаа ЭХЛЭЭД list_services-ээр " +
+            "одоогийн жагсаалтыг аваад, БҮХ хувилбарыг (өөрчлөлттэй нь) дамжуул (энэ талбар бүтнээр солигдоно).",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              sessions: { type: ["number", "null"] },
+              price: { type: ["number", "null"] },
+            },
+            additionalProperties: false,
+          },
+        },
+        addons: {
+          type: "array",
+          description:
+            "Нэмэлт сонголтууд (жишээ эрэгтэй багц — Laser/Carboxy/Oxygen). Нэгийг засахдаа БҮХ нэмэлтийг дамжуул.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              price: { type: ["number", "null"] },
+              note: { type: "string" },
+            },
+            additionalProperties: false,
+          },
+        },
+        benefits: { type: "array", items: { type: "string" }, description: "Онцлог/үр дүнгийн жагсаалт" },
+        introText: {
+          type: "string",
+          description: "Танилцуулга текст — зургуудын дараа илгээнэ (жишээ GREEN PEEL-ийн маркетингийн эх).",
+        },
+        images: {
+          type: "array",
+          items: { type: "string" },
+          description: "Олон зураг (URL). Танилцуулахдаа дараалан илгээнэ. Админ Telegram-аар зураг илгээвэл URL өгөгдөнө.",
+        },
       },
       required: ["serviceId"],
       additionalProperties: false,
@@ -78,6 +119,37 @@ const tools = [
           description:
             "Энэ үйлчилгээг ярихад ботын дагах ТУСГАЙ заавар (чөлөөт). Жишээ: 'эмзэг арьсанд тохиромжтой гэж онцол', 'курс 5-10 удаа гэж тайлбарла'.",
         },
+        variants: {
+          type: "array",
+          description: "Үнийн хувилбарууд (жишээ лазер — хэсэг тус бүр).",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              sessions: { type: ["number", "null"] },
+              price: { type: ["number", "null"] },
+            },
+            additionalProperties: false,
+          },
+        },
+        addons: {
+          type: "array",
+          description: "Нэмэлт сонголтууд (жишээ Laser/Carboxy/Oxygen).",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              price: { type: ["number", "null"] },
+              note: { type: "string" },
+            },
+            additionalProperties: false,
+          },
+        },
+        benefits: { type: "array", items: { type: "string" }, description: "Онцлог/үр дүнгийн жагсаалт" },
+        introText: { type: "string", description: "Танилцуулга текст (зургуудын дараа илгээнэ)." },
+        images: { type: "array", items: { type: "string" }, description: "Олон зураг (URL)." },
       },
       required: ["name"],
       additionalProperties: false,
@@ -480,6 +552,13 @@ function buildSystemPrompt() {
     `үзүүл, "role засах уу?" гэж БҮҮ ярь. Зөвхөн role=artist-д л үйлчилгээ/хуваарь дутуу бол эелдэг сануул.\n` +
     `• ТУСГАЙ ЗААВАР (notes): Админ "энэ үйлчилгээнд ингэ/ийм зүйл онцол" гэвэл тухайн үйлчилгээний ` +
     `notes талбарт update_service-ээр хадгал. Хэрэглэгч бот тэр үйлчилгээг ярихдаа энэ зааврыг дагана.\n` +
+    `• ХЭСЭГ БҮРИЙН ҮНЭ / НЭМЭЛТ / ОНЦЛОГ / ТАНИЛЦУУЛГА ЗАСАХ (update_service):\n` +
+    `  - Лазер мэт ХЭСЭГ БҮРИЙН үнэ = variants (жишээ "лазер хөлний үнийг 260000 болго").\n` +
+    `  - Эрэгтэй багцын НЭМЭЛТ (Laser/Carboxy/Oxygen) үнэ/нэр = addons.\n` +
+    `  - Онцлог/үр дүнгийн жагсаалт = benefits. Танилцуулга текст = introText. Олон зураг = images.\n` +
+    `  ⚠️ variants/addons/benefits-ийн НЭГ утгыг засахдаа ЭХЛЭЭД list_services-ээр одоогийн БҮХ жагсаалтыг ` +
+    `аваад, зөвхөн өөрчлөх зүйлээ сольж, БҮХ жагсаалтыг БҮТНЭЭР дамжуул (тэр талбар бүтнээр солигдоно, ` +
+    `дутуу дамжуулбал үлдсэн нь устана). images солихдоо админ зургаа Telegram-аар илгээхэд URL өгөгдөнө.\n` +
     `• ҮЙЛЧИЛГЭЭ устгах/нуух: БҮРМӨСӨН устгах бол delete_service (устгахын өмнө заавал баталгаажуул, ` +
     `буцаахгүй). Түр нуух/идэвхгүй болгох бол update_service-ийн active=false (устгахгүй, дараа эргүүлж асааж болно). ` +
     `Нэмсэн/засварласан үйлчилгээ хэрэглэгчийн ботод шууд харагдана.\n` +
