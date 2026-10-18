@@ -24,6 +24,7 @@ import { suggestServiceSlots, artistsForService } from "../booking/assignment.js
 import { presentOneService, presentProduct, absImageUrl } from "./present.js";
 import { sendImage, sendText } from "../messenger/sendApi.js";
 import { escalateQuestion, searchKnowledge } from "../escalation.js";
+import { getSalonLocation, getSalonPhone } from "../salonInfo.js";
 
 const MAX_HISTORY = 20;
 
@@ -146,6 +147,10 @@ const tools = [
 async function buildSystemPrompt(psid) {
   const services = await repository.listServices({ activeOnly: true });
 
+  // Хаяг/утас — settings дэх override, эс бол config/env.
+  const salonLocation = await getSalonLocation();
+  const salonPhone = await getSalonPhone();
+
   // Админ тохируулсан нэмэлт өнгө аяс/хэв маягийн заавар (байвал).
   const tone = await repository.getSetting("tone");
   const toneNote = tone ? `\n\n⭐ АДМИНААС НЭМЭЛТ ХЭВ МАЯГИЙН ЗААВАР (дээд зэргээр баримтал): ${tone}` : "";
@@ -176,8 +181,8 @@ async function buildSystemPrompt(psid) {
 
   // Холбоо барих / байршил (үнэхээр мэдэхгүй үед санал болгоно)
   const contactParts = [];
-  if (config.salonPhone) contactParts.push(`утас: ${config.salonPhone}`);
-  if (config.salonLocation) contactParts.push(`байршил: ${config.salonLocation}`);
+  if (salonPhone) contactParts.push(`утас: ${salonPhone}`);
+  if (salonLocation) contactParts.push(`байршил: ${salonLocation}`);
   const contactLine = contactParts.length
     ? `Холбоо барих — ${contactParts.join(", ")}.`
     : `(Холбоо барих утас/байршил тохируулагдаагүй — байгаа бол санал болго.)`;
@@ -236,8 +241,8 @@ async function buildSystemPrompt(psid) {
     `байвал бичээрэй") ба үйлчилгээ/мэдээлэл/цаг захиалга БҮҮ түлх. Шинэ юм БҮҮ нэм.\n` +
     `• ХАЯГ/БАЙРШИЛ/УТАС: Хэрэглэгч асуувал ШУУД, байгалийн хэлбэрээр хэл (escalate хийхгүй, ` +
     `нэмж юм зохихгүй):\n` +
-    `  📍 Хаяг: ${config.salonLocation}\n` +
-    `  ☎ Утас: ${config.salonPhone}\n` +
+    `  📍 Хаяг: ${salonLocation}\n` +
+    `  ☎ Утас: ${salonPhone}\n` +
     `• БАРАА БҮТЭЭГДЭХҮҮН (үйлчилгээнээс тусдаа): Хэрэглэгч "ямар бараа зардаг вэ", "тос/маск байна уу" ` +
     `гэх мэт асуувал list_products-оор жагсаа, сонирхвол present_product-оор зураг үзүүл. ` +
     `Бараа нь ЗАРАГДДАГ эд — цаг захиалга зөвхөн ҮЙЛЧИЛГЭЭНД. Бараа авах бол салонд ирэхийг эелдэг хэл.\n` +
@@ -378,7 +383,7 @@ async function runTool(name, input, ctx) {
         `Таны «${booking.serviceName}» цаг захиалга амжилттай баталгаажлаа.✅\n\n` +
         `📅 ${booking.date}, ${booking.time}\n\n` +
         `Өөртөө цаг гаргаж, гоо сайхандаа анхаарал тавихаар шийдсэн танд баяр хүргэе.\n\n` +
-        `📍 Манай хаяг: ${config.salonLocation}`;
+        `📍 Манай хаяг: ${await getSalonLocation()}`;
       await sendText(ctx.psid, confirmText);
 
       const locUrls = (config.salonLocationImages || []).map(absImageUrl).filter(Boolean);

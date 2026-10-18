@@ -22,6 +22,7 @@ import { sendArtistText } from "../messenger/sendApi.js";
 import { syncScheduleSafe, syncScheduleToSheet, isSheetsConfigured } from "../sheets/googleSheets.js";
 import { sendTelegram } from "./telegramSend.js";
 import { buildWeekData, weekTelegramText } from "../schedule/weekView.js";
+import { getSalonLocation, getSalonPhone } from "../salonInfo.js";
 
 // Админы ярианы түүхийг Redis-д хадгална (conv:admin:<id>) — Vercel cold start/
 // зэрэгцээ instance дээр ч тогтвортой. (Customer боттой ижил repository ашиглана.)
@@ -404,6 +405,21 @@ const tools = [
     input_schema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
+    name: "set_salon_info",
+    description:
+      "Салоны ХАЯГ эсвэл УТАС-ыг шинэчлэх. 'хаягийг ... болго' → field='location'; 'утсыг ... болго' → " +
+      "field='phone'. Хоёул бот (customer + admin)-д шууд тусна. (Ажиллах цаг одоогоор энд засагддаггүй.)",
+    input_schema: {
+      type: "object",
+      properties: {
+        field: { type: "string", enum: ["location", "phone"] },
+        value: { type: "string", description: "Шинэ хаяг эсвэл утас" },
+      },
+      required: ["field", "value"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "sync_schedule_sheet",
     description: "Артистуудын ажиллах хуваарийг Google Sheet руу гараар шинэчлэх (ихэвчлэн автоматаар шинэчлэгддэг).",
     input_schema: { type: "object", properties: {}, additionalProperties: false },
@@ -500,16 +516,18 @@ export function adminSubmenu(text) {
   return ADMIN_SUBMENUS[key] || null;
 }
 
-function buildSystemPrompt() {
+async function buildSystemPrompt() {
+  const salonLocation = await getSalonLocation();
+  const salonPhone = await getSalonPhone();
   return (
     `Чи бол ${config.salonName}-ийн АЖИЛЧДАД зориулсан Admin туслах AI. Үүрэг: мэдээллийн сан ` +
     `(үйлчилгээ, үнэ, артист), захиалга удирдахад туслах.\n\n` +
     `САЛОНЫ ҮНДСЭН МЭДЭЭЛЭЛ (хаяг/утас/цаг асуувал ЭНЭ дээр тулгуурла — Customer бот ч яг үүнийг хэрэглэдэг):\n` +
     `• Нэр: ${config.salonName}\n` +
-    `• 📍 Хаяг: ${config.salonLocation}\n` +
-    `• ☎ Утас: ${config.salonPhone}\n` +
+    `• 📍 Хаяг: ${salonLocation}\n` +
+    `• ☎ Утас: ${salonPhone}\n` +
     `• Ажиллах цаг: өдөр бүр ${config.salonOpenHour}:00–${config.salonCloseHour}:00, ${config.slotMinutes} минут тутмын слот.\n` +
-    `(Эдгээрийг "мэдэхгүй" гэж БҮҮ хэл — энд бичигдсэн байна. Өөрчлөх бол одоогоор env/тохиргооноос хийгдэнэ.)\n\n` +
+    `(Хаяг/утсыг "хаягийг ... болго" / "утсыг ... болго" гэвэл set_salon_info-оор засна. Ажиллах цаг одоогоор env-ээс.)\n\n` +
     `ХЭВ МАЯГ (маш чухал) — ЧИ БОЛ НАЙРСАГ, ДУЛААН ХАМТРАГЧ:\n` +
     `• Жинхэнэ хүнтэй хамтран ажиллаж байгаа мэт дулаан, ойлгомжтой ярь. Ажилтны хэлснийг ОЙЛГОСНОО ` +
     `илэрхийл: "За, ойлголоо", "Тэгье", "Одоо хийчихье", "Ингэвэл яаж байна?" гэх мэт хамтач өнгө.\n` +
@@ -804,6 +822,16 @@ async function runTool(name, input, ctx = {}) {
         tone: (await repository.getSetting("tone")) || "(анхны default)",
       };
     }
+    case "set_salon_info": {
+      const key = input.field === "phone" ? "salon_phone" : "salon_location";
+      await repository.setSetting(key, input.value);
+      return {
+        ok: true,
+        field: input.field,
+        value: input.value,
+        note: "Шинэчлэгдлээ. Customer бот болон админ хоёуланд шууд тусна.",
+      };
+    }
     case "sync_schedule_sheet": {
       if (!isSheetsConfigured()) return { ok: false, error: "Google Sheet тохируулаагүй байна." };
       const r = await syncScheduleToSheet();
@@ -889,7 +917,7 @@ export async function handleAdminMessage({ adminId, text }) {
   const history = sanitizeHistory([...(await repository.getConversation(adminConvKey(adminId)))]);
   history.push({ role: "user", content: text });
 
-  const system = buildSystemPrompt();
+  const system = await buildSystemPrompt();
   let reply = "";
 
   try {
