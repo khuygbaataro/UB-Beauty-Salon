@@ -144,16 +144,23 @@ const tools = [
 ];
 
 // ───────── Системийн промт ─────────
-async function buildSystemPrompt(psid) {
+export async function buildSystemPrompt(psid) {
   const services = await repository.listServices({ activeOnly: true });
 
   // Хаяг/утас — settings дэх override, эс бол config/env.
   const salonLocation = await getSalonLocation();
   const salonPhone = await getSalonPhone();
 
-  // Админ тохируулсан нэмэлт өнгө аяс/хэв маягийн заавар (байвал).
+  // Админ тохируулсан нэмэлт өнгө аяс/хэв маягийн заавар (байвал). Энэ нь дээрх анхдагч
+  // ХЭВ МАЯГИЙН (emoji, өнгө аяс, урт/богино) дүрмийг ДАВАМГАЙЛНА — ингэснээр админ
+  // Telegram-аас "ингэж бай" гэж засахад бот үнэхээр тэр дагуу өөрчлөгдөнө.
   const tone = await repository.getSetting("tone");
-  const toneNote = tone ? `\n\n⭐ АДМИНААС НЭМЭЛТ ХЭВ МАЯГИЙН ЗААВАР (дээд зэргээр баримтал): ${tone}` : "";
+  const toneNote = tone
+    ? `\n\n⭐⭐ АДМИНААС ИРСЭН ЗАН ТӨЛӨВИЙН ЗААВАР — ХАМГИЙН ДЭЭД ТЭРГҮҮЛЭХ. Хэрэв дээрх анхдагч ХЭВ МАЯГИЙН ` +
+      `дүрэмтэй (emoji ашиглах эсэх, дулаан/албан өнгө, урт/богино байдал) ЗӨРЧИЛДВӨЛ — ЭНЭ ЗААВРЫГ ДАГА, ` +
+      `анхдагчийг БҮҮ дага. (Гэхдээ үнэ/цаг/баримтыг зохиохгүй, байхгүйг мэдэхгүй гэх ФАКТЫН дүрэм хэвээр.)\n` +
+      `Заавар: ${tone}`
+    : "";
 
   // Мэндчилгээнд ашиглах цэвэр нэрсийн жагсаалт (үнэгүй).
   const menuList = services.map((s) => `• ${s.name}`).join("\n");
