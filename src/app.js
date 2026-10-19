@@ -33,7 +33,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-19-11"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-19-12"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
@@ -174,8 +174,8 @@ async function handleMessagingEvent(event) {
       service = await repository.findServiceByRef(event.message.text);
     }
     if (service) {
-      // Товчлуур/контентоос ирсэн → тэр үйлчилгээг ЗУРАГ + мэдээлэл + "сонирхож байна уу?"-гаар ШУУД
-      await presentServiceDirect(psid, service);
+      // Товчлуур/контент/ад → АНХНЫ холбоо тул мэндчилгээтэй (greet=true) танилцуулна.
+      await presentServiceDirect(psid, service, await isNewConversation(psid));
       return; // ✅ үйлчилгээний мэдээлэл шууд өглөө — AI-гаар дахин боловсруулахгүй
     }
     // Контент тодорхойгүй / Get Started → НЭГ богино мессежээр үйлчилгээний цэс
@@ -214,7 +214,8 @@ async function handleMessagingEvent(event) {
       if (isServicePickText(rawText)) {
         const svc = await repository.findServiceByRef(rawText);
         if (svc) {
-          await presentServiceDirect(psid, svc);
+          // Яриа дундуур нэр бичсэн бол мэндлэхгүй; анхны мессеж бол л мэндэлнэ.
+          await presentServiceDirect(psid, svc, await isNewConversation(psid));
           return;
         }
       }
@@ -243,10 +244,11 @@ async function handleMessagingEvent(event) {
  * Нэг үйлчилгээг ШУУД (AI-гүйгээр) үзүүлэх: зураг + товч тайлбар + "сонирхож байна уу?".
  * Referral, товчлуур, эсвэл үйлчилгээний нэр шууд бичсэн бүх тохиолдолд ашиглана.
  */
-async function presentServiceDirect(psid, service) {
+async function presentServiceDirect(psid, service, greet = false) {
   await setReferredService(psid, service.id);
   await presentOneService(psid, service);
-  await sendText(psid, buildGreeting(service));
+  // greet=true зөвхөн АНХНЫ холбоонд (ад/анхны мессеж) — яриа дундуур "Сайн байна уу?" гэж мэндлэхгүй.
+  await sendText(psid, buildGreeting(service, greet));
   await seedGreeting(
     psid,
     `[«${service.name}»-г зураг + товч тайлбар + "сонирхож байна уу?"-гаар танилцууллаа. ` +

@@ -50,7 +50,7 @@ export async function resolveReferral(ref) {
  * Мэндчилгээний текст үүсгэх.
  * @param {object|null} service — ирсэн үйлчилгээ (ref-ээс тогтоосон)
  */
-export function buildGreeting(service) {
+export function buildGreeting(service, greet = true) {
   if (!service) {
     return (
       `Сайн байна уу?\n\n${config.salonName}-ны чатботод тавтай морилно уу.\n\n` +
@@ -64,10 +64,17 @@ export function buildGreeting(service) {
 
   // Контентоос ирсэн — үйлчилгээг товч танилцуулаад, сонирхлыг нь батлах (funnel).
   // ⚠️ Үнийг энд хэлэхгүй — хэрэглэгч сонирхсоноо батласны дараа AI үнэ+бэлгийг хэлнэ.
+  // greet=true зөвхөн АНХНЫ холбоонд (ад/анхны мессеж). Яриа дундуур дахин "Сайн байна уу?" гэж мэндлэхгүй.
+  const hello = greet ? `Сайн байна уу? 😊\n\n` : "";
+  // Тайлбараас placeholder/дутуу тэмдэглэлийг цэвэрлэнэ (хэрэглэгчид харуулахгүй).
+  const desc = String(service.description || "")
+    .replace(/\(?\s*дэлгэрэнгүй[^)]*нэмэгдэнэ\.?\s*\)?/gi, "")
+    .replace(/\(\s*\.\.\.\s*\)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
   return (
-    `Сайн байна уу?\n\n` +
-    `«${service.name}» үйлчилгээг сонирхсон танд баярлалаа.\n\n` +
-    `${service.description}\n\n` +
+    `${hello}«${service.name}» үйлчилгээг сонирхсон танд баярлалаа.\n\n` +
+    `${desc}\n\n` +
     `Та энэ үйлчилгээг сонирхож байна уу?`
   );
 }
