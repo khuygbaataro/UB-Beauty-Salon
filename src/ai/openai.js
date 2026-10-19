@@ -42,8 +42,8 @@ export async function createChatCompletion({ messages, tools, maxTokens = 1500, 
     // GPT-5 үеийн моделиуд max_completion_tokens хэрэглэдэг (max_tokens биш).
     max_completion_tokens: maxTokens,
   };
-  // gpt-5.6-luna: chat/completions дээр function tools хэрэглэхэд reasoning_effort="none"
-  // байх шаардлагатай (reasoning+tools нь зөвхөн /v1/responses дээр дэмжигддэг).
+  // luna гэр бүл (gpt-6-luna г.м.): chat/completions дээр function tools хэрэглэхэд
+  // reasoning_effort="none" байх шаардлагатай (reasoning+tools нь зөвхөн /v1/responses дээр).
   const effort = reasoningEffort || config.customerReasoningEffort;
   if (effort) req.reasoning_effort = effort;
 
