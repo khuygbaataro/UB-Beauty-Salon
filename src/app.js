@@ -33,7 +33,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-19-3"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-19-4"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
@@ -294,11 +294,20 @@ async function handleHumanTakeover(psid) {
   const already = await repository.getPaused(psid);
   await repository.setPaused(psid, config.handoffPauseMinutes * 60);
   if (!already) {
-    await sendText(
-      psid,
-      "Таны чатад манай ажилтан нэгдлээ 😊 Та үргэлжлүүлэн асууж болно, шууд хариулж тусална.",
-    ).catch(() => {});
+    // "Ажилтан нэгдлээ" мэдэгдлийн тохиргоо (admin-аас set_bot_text key='handoff_notice'):
+    //  • тохируулаагүй (null) → анхдагч мессеж  • "off"/хоосон → ЧИМЭЭГҮЙ  • бусад → тэр текст
+    const notice = resolveHandoffNotice(await repository.getSetting("handoff_notice"));
+    if (notice) await sendText(psid, notice).catch(() => {});
   }
+}
+
+/** Human takeover үед илгээх мэдэгдлийг тодорхойлох. null буцвал чимээгүй (илгээхгүй). */
+export function resolveHandoffNotice(setting) {
+  const DEFAULT = "Таны чатад манай ажилтан нэгдлээ 😊 Та үргэлжлүүлэн асууж болно, шууд хариулж тусална.";
+  if (setting == null) return DEFAULT; // тохируулаагүй → анхдагч
+  const t = String(setting).trim();
+  if (!t || t.toLowerCase() === "off" || /болиул|унтраа|чимээгүй|бүү/i.test(t)) return null; // чимээгүй
+  return t; // админы өгсөн текст
 }
 
 // ───────── Facebook webhook баталгаажуулалт (АРТИСТын хуудас) ─────────

@@ -424,12 +424,14 @@ const tools = [
     name: "set_bot_text",
     description:
       "Хэрэглэгчийн ботын ТЕКСТ/ӨНГӨ АЯСЫГ тохируулах. key='greeting' → эхний мэндчилгээний текст; " +
-      "key='tone' → ботын ерөнхий өнгө аяс/хэв маягийн нэмэлт заавар (жишээ 'илүү дулаан, ✨ emoji хэрэглэ').",
+      "key='tone' → ботын ерөнхий өнгө аяс/хэв маягийн нэмэлт заавар (жишээ 'илүү дулаан, ✨ emoji хэрэглэ'); " +
+      "key='handoff_notice' → ажилтан гар аргаар чат авахад хэрэглэгчид илгээх мэдэгдэл. " +
+      "⚠️ Ажилтан нэгдэх мессежийг БОЛИУЛАХ/унтраах (чимээгүй болгох) бол value='off'.",
     input_schema: {
       type: "object",
       properties: {
-        key: { type: "string", enum: ["greeting", "tone"] },
-        value: { type: "string", description: "Шинэ текст/заавар" },
+        key: { type: "string", enum: ["greeting", "tone", "handoff_notice"] },
+        value: { type: "string", description: "Шинэ текст/заавар. handoff_notice-ийг унтраах бол 'off'." },
       },
       required: ["key", "value"],
       additionalProperties: false,
@@ -646,6 +648,9 @@ async function buildSystemPrompt() {
     `• ХЭРЭГЛЭГЧИЙН БОТЫН ТЕКСТ/ӨНГӨ: Админ "мэндчилгээг ... болго" гэвэл set_bot_text key='greeting', ` +
     `"бот илүү дулаан/өөр өнгөтэй ярь, ✨ emoji хэрэглэ" гэх мэт бол key='tone'-оор хадгал. ` +
     `get_bot_text-ээр одоогийнхыг хар. Өөрчлөлт хэрэглэгчийн ботод шууд тусна.\n` +
+    `• АЖИЛТАН НЭГДЭХ МЭДЭГДЭЛ: Ажилтан гар аргаар чат авахад хэрэглэгчид "ажилтан нэгдлээ" гэж очдог. ` +
+    `Үүнийг БОЛИУЛАХ/унтраах (зүгээр чимээгүй болгох) бол set_bot_text key='handoff_notice', value='off'. ` +
+    `Өөр текст болгохыг хүсвэл тэр текстийг value-д өг. Буцааж асаах бол дахин текст тохируул.\n` +
     `• ХУВААРИЙН GOOGLE SHEET: Артистуудын ажиллах хуваарь өөрчлөгдөх бүрт Google Sheet автоматаар ` +
     `шинэчлэгддэг. "хуваарь шинэчил/гарга" гэвэл sync_schedule_sheet-ээр гараар шинэчилж болно.\n` +
     `• ЭНЭ ДОЛОО ХОНОГИЙН ХУВААРЬ: "энэ долоо хоног", "хэн ажиллаж байна", "7 хоногийн хуваарь" гэвэл ` +
@@ -901,9 +906,12 @@ async function runTool(name, input, ctx = {}) {
       return { ok: true, key: input.key, note: "Хэрэглэгчийн ботод шууд тусна." };
     }
     case "get_bot_text": {
+      const handoff = await repository.getSetting("handoff_notice");
       return {
         greeting: (await repository.getSetting("greeting")) || "(анхны default)",
         tone: (await repository.getSetting("tone")) || "(анхны default)",
+        handoff_notice:
+          handoff == null ? "(анхны default мессеж)" : handoff === "off" ? "(унтраасан — чимээгүй)" : handoff,
       };
     }
     case "set_salon_info": {
