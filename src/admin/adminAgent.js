@@ -24,6 +24,7 @@ import { syncScheduleSafe, syncScheduleToSheet, isSheetsConfigured } from "../sh
 import { sendTelegram } from "./telegramSend.js";
 import { buildWeekData, weekTelegramText } from "../schedule/weekView.js";
 import { getSalonLocation, getSalonPhone } from "../salonInfo.js";
+import { ubDate, ubClock } from "../booking/schedule.js";
 
 // Админы ярианы түүхийг Redis-д хадгална (conv:admin:<id>) — Vercel cold start/
 // зэрэгцээ instance дээр ч тогтвортой. (Customer боттой ижил repository ашиглана.)
@@ -560,6 +561,9 @@ async function buildSystemPrompt() {
   return (
     `Чи бол ${config.salonName}-ийн АЖИЛЧДАД зориулсан Admin туслах AI. Үүрэг: мэдээллийн сан ` +
     `(үйлчилгээ, үнэ, артист), захиалга удирдахад туслах.\n\n` +
+    `⏰ ОДОО: ${ubDate(0)} (${ubClock()}, Улаанбаатар). ⛔ Өнөөдөр/маргааш/огноог ХЭРЭГЛЭГЧЭЭС БҮҮ асуу — ` +
+    `"өнөөдрийн захиалга" = ${ubDate(0)}, "маргаашийн" = ${ubDate(1)} гэж ӨӨРӨӨ мэд. Шууд list_bookings-ээ ` +
+    `тэр огноогоор дууд. "Өнөөдөр хэдний өдөр вэ" гэвэл ${ubDate(0)} гэж хэл.\n\n` +
     `САЛОНЫ ҮНДСЭН МЭДЭЭЛЭЛ (хаяг/утас/цаг асуувал ЭНЭ дээр тулгуурла — Customer бот ч яг үүнийг хэрэглэдэг):\n` +
     `• Нэр: ${config.salonName}\n` +
     `• 📍 Хаяг: ${salonLocation}\n` +
