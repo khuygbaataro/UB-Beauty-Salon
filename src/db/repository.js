@@ -128,6 +128,7 @@ export const repository = {
   // Админ үйлдлийн лог (audit)
   appendAdminAudit: (entry) => getStore().appendAdminAudit(entry),
   listAdminAudit: (limit) => getStore().listAdminAudit(limit),
+  dumpAdminConversations: () => getStore().dumpAdminConversations(),
 
   // Тохиргоо (ботын текст/өнгө аяс)
   getSetting: (key) => getStore().getSetting(key),

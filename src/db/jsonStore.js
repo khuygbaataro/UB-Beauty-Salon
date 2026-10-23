@@ -299,6 +299,19 @@ export function createJsonStore() {
       if (psid) pausedUntil.delete(psid);
     },
 
+    // ───────── Админы ярианы түүх дүгнэх (өмнө бичсэнийг олох) ─────────
+    async dumpAdminConversations() {
+      const out = [];
+      for (const [key, conv] of conversations.entries()) {
+        if (!String(key).startsWith("admin:")) continue;
+        const typed = (conv || [])
+          .filter((m) => m && m.role === "user" && typeof m.content === "string")
+          .map((m) => m.content);
+        if (typed.length) out.push({ adminId: String(key).replace("admin:", ""), messages: typed });
+      }
+      return out;
+    },
+
     // ───────── Админ үйлдлийн лог (audit) ─────────
     async appendAdminAudit(entry) {
       adminAudit.unshift({ at: new Date().toISOString(), ...entry });

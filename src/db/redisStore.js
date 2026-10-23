@@ -334,6 +334,30 @@ export function createRedisStore() {
       if (psid) await redis.del(`pause:${psid}`);
     },
 
+    // ───────── Админы ярианы түүх дүгнэх (өмнө бичсэнийг олох) ─────────
+    // conv:admin:* түлхүүрүүдийг scan-даж, админ бүрийн бичсэн (string) мессежүүдийг гаргана.
+    // ⚠️ Зөвхөн сүүлийн ~20 мессеж хадгалагддаг (trim), цаг хугацаа байхгүй.
+    async dumpAdminConversations() {
+      const keys = [];
+      let cursor = "0";
+      do {
+        const res = await redis.scan(cursor, { match: "conv:admin:*", count: 100 });
+        cursor = String(res[0]);
+        if (Array.isArray(res[1])) keys.push(...res[1]);
+      } while (cursor !== "0" && keys.length < 500);
+
+      const out = [];
+      for (const k of keys) {
+        const conv = (await redis.get(k)) || [];
+        const adminId = String(k).replace("conv:admin:", "");
+        const typed = (Array.isArray(conv) ? conv : [])
+          .filter((m) => m && m.role === "user" && typeof m.content === "string")
+          .map((m) => m.content);
+        if (typed.length) out.push({ adminId, messages: typed });
+      }
+      return out;
+    },
+
     // ───────── Админ үйлдлийн лог (audit) — хэн юу бичсэн ─────────
     async appendAdminAudit(entry) {
       const rec = { at: new Date().toISOString(), ...entry };
