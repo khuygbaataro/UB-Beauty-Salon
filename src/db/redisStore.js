@@ -334,6 +334,44 @@ export function createRedisStore() {
       if (psid) await redis.del(`pause:${psid}`);
     },
 
+    // ───────── Customer чатуудыг татах (дүн шинжилгээнд) ─────────
+    // conv:<psid> (customer) түлхүүрүүдийг scan-даж, сүүлийн limit-ийг буцаана.
+    // conv:admin:* / conv:artist:* -ийг алгасна.
+    async dumpCustomerConversations(limit = 10, perMsgs = 16) {
+      const keys = [];
+      let cursor = "0";
+      do {
+        const res = await redis.scan(cursor, { match: "conv:*", count: 200 });
+        cursor = String(res[0]);
+        if (Array.isArray(res[1])) {
+          for (const k of res[1]) {
+            const s = String(k);
+            if (!s.startsWith("conv:admin:") && !s.startsWith("conv:artist:")) keys.push(s);
+          }
+        }
+      } while (cursor !== "0" && keys.length < 300);
+
+      const out = [];
+      for (const k of keys.slice(0, limit)) {
+        const conv = (await redis.get(k)) || [];
+        const psid = String(k).replace("conv:", "");
+        const msgs = (Array.isArray(conv) ? conv : []).slice(-perMsgs).map((m) => ({
+          role: m.role,
+          // Customer (OpenAI) формат: content нь string; tool дуудлага/үр дүнг товч тэмдэглэнэ.
+          text:
+            typeof m.content === "string"
+              ? m.content
+              : m.tool_calls
+                ? `[tool: ${m.tool_calls.map((t) => t.function?.name).join(",")}]`
+                : m.role === "tool"
+                  ? "[tool-result]"
+                  : "",
+        }));
+        out.push({ psid: psid.slice(-6), count: Array.isArray(conv) ? conv.length : 0, messages: msgs });
+      }
+      return out;
+    },
+
     // ───────── Админы ярианы түүх дүгнэх (өмнө бичсэнийг олох) ─────────
     // conv:admin:* түлхүүрүүдийг scan-даж, админ бүрийн бичсэн (string) мессежүүдийг гаргана.
     // ⚠️ Зөвхөн сүүлийн ~20 мессеж хадгалагддаг (trim), цаг хугацаа байхгүй.

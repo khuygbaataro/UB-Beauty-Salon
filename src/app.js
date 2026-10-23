@@ -33,7 +33,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-23-3"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-23-4"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
@@ -437,6 +437,22 @@ app.get("/cron/reminders", async (req, res) => {
   const result = await runReminders();
   console.log("[cron] reminders:", result);
   res.json({ ok: true, ...result });
+});
+
+// ───────── Дүн шинжилгээ: сүүлийн customer чатуудыг татах (secured) ─────────
+// ?key=<CRON_SECRET> шаардана. CRON_SECRET тохируулаагүй бол татахгүй (нууцлал).
+app.get("/admin/dump-chats", async (req, res) => {
+  if (!config.cronSecret || req.query.key !== config.cronSecret) {
+    return res.status(401).json({ ok: false, error: "unauthorized" });
+  }
+  const limit = Math.min(30, Math.max(1, Number(req.query.limit) || 12));
+  const perMsgs = Math.min(40, Math.max(4, Number(req.query.msgs) || 16));
+  try {
+    const chats = await repository.dumpCustomerConversations(limit, perMsgs);
+    res.json({ ok: true, count: chats.length, chats });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
 });
 
 // ───────── Global error handler ─────────

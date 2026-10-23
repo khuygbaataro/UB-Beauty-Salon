@@ -299,6 +299,22 @@ export function createJsonStore() {
       if (psid) pausedUntil.delete(psid);
     },
 
+    // ───────── Customer чатуудыг татах (дүн шинжилгээнд) ─────────
+    async dumpCustomerConversations(limit = 10, perMsgs = 16) {
+      const out = [];
+      for (const [key, conv] of conversations.entries()) {
+        const s = String(key);
+        if (s.startsWith("admin:") || s.startsWith("artist:")) continue;
+        const msgs = (conv || []).slice(-perMsgs).map((m) => ({
+          role: m.role,
+          text: typeof m.content === "string" ? m.content : m.tool_calls ? "[tool-call]" : m.role === "tool" ? "[tool-result]" : "",
+        }));
+        out.push({ psid: s.slice(-6), count: (conv || []).length, messages: msgs });
+        if (out.length >= limit) break;
+      }
+      return out;
+    },
+
     // ───────── Админы ярианы түүх дүгнэх (өмнө бичсэнийг олох) ─────────
     async dumpAdminConversations() {
       const out = [];
