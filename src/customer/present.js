@@ -23,14 +23,20 @@ export async function presentMainServices(psid) {
   const services = await repository.listServices({ activeOnly: true });
   const menu = services.map((s) => `• ${s.name}`).join("\n");
 
-  // Админ тохируулсан мэндчилгээ байвал түүнийг, эс бол default-ийг ашиглана.
+  // Админ тохируулсан мэндчилгээ байвал түүнийг ашиглана.
   const custom = await repository.getSetting("greeting");
-  const intro =
-    custom ||
-    `Сайн байна уу?\n\n${config.salonName}-ны чатботод тавтай морилно уу.\n\n` +
-      `Ямар үйлчилгээний талаар дэлгэрэнгүй мэдээлэл авахыг хүсэж байна вэ?`;
 
-  await sendText(psid, `${intro}\n\n${menu}`);
+  if (custom) {
+    // ⚠️ Хэрэв админ мэндчилгээндээ ҮЙЛЧИЛГЭЭНИЙ ЖАГСААЛТ (• эсвэл GREEN PEEL/лазер г.м.)-ийг
+    //    аль хэдийн оруулсан бол авто-цэсийг ДАВХАР нэмэхгүй (давхардахаас сэргийлнэ).
+    const hasList = /•|GREEN PEEL|лазер|сормуус|green peel/i.test(custom);
+    await sendText(psid, hasList ? custom : `${custom}\n\n${menu}`);
+  } else {
+    const intro =
+      `Сайн байна уу?\n\n${config.salonName}-ны чатботод тавтай морилно уу.\n\n` +
+      `Ямар үйлчилгээний талаар дэлгэрэнгүй мэдээлэл авахыг хүсэж байна вэ?`;
+    await sendText(psid, `${intro}\n\n${menu}`);
+  }
 
   return services.map((s) => s.name);
 }
