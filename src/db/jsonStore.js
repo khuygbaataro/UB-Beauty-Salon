@@ -30,6 +30,7 @@ export function createJsonStore() {
   const conversations = new Map(); // psid -> messages[]
   const referred = new Map(); // psid -> serviceId
   const pausedUntil = new Map(); // psid -> expiryMs (хүн гар аргаар авсан үед бот зогсоно)
+  const adminAudit = []; // админ үйлдлийн лог (хэн юу бичсэн) — хамгийн сүүлийнх нь эхэнд
   const settings = new Map(); // ботын тохиргоо (greeting, tone г.м.)
 
   return {
@@ -296,6 +297,15 @@ export function createJsonStore() {
     },
     async clearPaused(psid) {
       if (psid) pausedUntil.delete(psid);
+    },
+
+    // ───────── Админ үйлдлийн лог (audit) ─────────
+    async appendAdminAudit(entry) {
+      adminAudit.unshift({ at: new Date().toISOString(), ...entry });
+      if (adminAudit.length > 300) adminAudit.length = 300;
+    },
+    async listAdminAudit(limit = 30) {
+      return adminAudit.slice(0, limit);
     },
 
     // ───────── Тохиргоо (ботын текст/өнгө аяс) ─────────

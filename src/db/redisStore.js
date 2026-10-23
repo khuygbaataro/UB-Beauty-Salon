@@ -334,6 +334,26 @@ export function createRedisStore() {
       if (psid) await redis.del(`pause:${psid}`);
     },
 
+    // ───────── Админ үйлдлийн лог (audit) — хэн юу бичсэн ─────────
+    async appendAdminAudit(entry) {
+      const rec = { at: new Date().toISOString(), ...entry };
+      await redis.lpush("admin_audit", JSON.stringify(rec));
+      await redis.ltrim("admin_audit", 0, 299); // сүүлийн 300-г хадгална
+    },
+    async listAdminAudit(limit = 30) {
+      const arr = (await redis.lrange("admin_audit", 0, Math.max(0, limit - 1))) || [];
+      return arr
+        .map((x) => {
+          if (x && typeof x === "object") return x;
+          try {
+            return JSON.parse(x);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+    },
+
     // ───────── Тохиргоо (ботын текст/өнгө аяс) ─────────
     async getSetting(key) {
       return (await redis.hget("settings", key)) ?? null;

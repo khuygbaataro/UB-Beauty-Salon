@@ -125,6 +125,10 @@ export const repository = {
   setPaused: (psid, seconds) => getStore().setPaused(psid, seconds),
   clearPaused: (psid) => getStore().clearPaused(psid),
 
+  // Админ үйлдлийн лог (audit)
+  appendAdminAudit: (entry) => getStore().appendAdminAudit(entry),
+  listAdminAudit: (limit) => getStore().listAdminAudit(limit),
+
   // Тохиргоо (ботын текст/өнгө аяс)
   getSetting: (key) => getStore().getSetting(key),
   setSetting: (key, value) => getStore().setSetting(key, value),

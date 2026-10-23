@@ -422,6 +422,17 @@ const tools = [
     input_schema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
+    name: "show_admin_log",
+    description:
+      "Админ Telegram дээр ХЭН ЮУ бичсэн түүхийг (хамгийн сүүлийн үйлдлүүд) харах. " +
+      "'админ лог', 'хэн юу бичсэн', 'ямар засвар хийсэн', 'өөр хүн юу бичсэн' гэх мэт асуувал ашигла.",
+    input_schema: {
+      type: "object",
+      properties: { limit: { type: "number", description: "Хэдэн мөр харах (default 20)" } },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "set_bot_text",
     description:
       "Хэрэглэгчийн ботын ТЕКСТ/ӨНГӨ АЯСЫГ тохируулах. key='greeting' → эхний мэндчилгээний текст; " +
@@ -655,6 +666,9 @@ async function buildSystemPrompt() {
     `• ТОХИРГОО/ЗАСВАР ХАРАХ: Админ "миний тохиргоо/засваруудыг харуул", "одоогийн тохиргоо", "юу тохируулсан ` +
     `байна" гэвэл get_bot_text-ээр БҮХ идэвхтэй тохиргоог (мэндчилгээ, өнгө аяс, хаяг, утас, handoff, AI загвар) ` +
     `цэвэрхэн жагсааж үзүүл. Аль нь '(анхны default)' бол засаагүй гэж тайлбарла.\n` +
+    `• АДМИН ЛОГ (хэн юу бичсэн): "админ лог", "хэн юу бичсэн", "өөр хүн юу бичсэн", "ямар засвар хийсэн" гэвэл ` +
+    `show_admin_log-ийг дууд — хэн (нэр), юу бичсэн, хэзээ гэдгийг цэвэрхэн жагсааж үзүүл. (Шинээр нэмсэн тул ` +
+    `одооноос эхлэн бүртгэгдэнэ.)\n` +
     `• АЖИЛТАН НЭГДЭХ МЭДЭГДЭЛ: Ажилтан гар аргаар чат авахад хэрэглэгчид "ажилтан нэгдлээ" гэж очдог. ` +
     `Үүнийг БОЛИУЛАХ/унтраах (зүгээр чимээгүй болгох) бол set_bot_text key='handoff_notice', value='off'. ` +
     `Өөр текст болгохыг хүсвэл тэр текстийг value-д өг. Буцааж асаах бол дахин текст тохируул.\n` +
@@ -929,6 +943,28 @@ async function runTool(name, input, ctx = {}) {
           "Эдгээр нь одоо идэвхтэй тохиргоо (Telegram-аас засдаг). '(анхны default)' гэвэл засаагүй, " +
           "кодын анхдагчаар ажиллаж байна. Засвар хийсэн ч customer бот дээр харагдахгүй бол Vercel deploy " +
           "шинэчлэгдсэн эсэхийг (/status version) шалгуул.",
+      };
+    }
+    case "show_admin_log": {
+      const limit = Math.min(50, Math.max(1, Number(input.limit) || 20));
+      const entries = await repository.listAdminAudit(limit);
+      if (!entries.length) {
+        return { ok: true, entries: [], note: "Админ лог хоосон байна (шинээр нэмсэн тул одооноос эхлэн бүртгэгдэнэ)." };
+      }
+      // Улаанбаатарын цагаар, хэн-юу-хэзээ гэж цэвэрхэн харуулна.
+      const rows = entries.map((e) => {
+        let when = e.at;
+        try {
+          when = new Date(e.at).toLocaleString("mn-MN", { timeZone: "Asia/Ulaanbaatar" });
+        } catch {
+          /* ISO хэвээр */
+        }
+        return { when, name: e.name || "—", text: e.text || "" };
+      });
+      return {
+        ok: true,
+        entries: rows,
+        note: "Хэн (name), юу бичсэн (text), хэзээ (when). Хамгийн сүүлийнх нь эхэнд. Цэвэрхэн жагсааж үзүүл.",
       };
     }
     case "set_salon_info": {

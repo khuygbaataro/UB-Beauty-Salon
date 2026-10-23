@@ -33,7 +33,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-23-1"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-23-2"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
@@ -357,6 +357,14 @@ app.post("/admin/telegram", async (req, res) => {
 
   // ⚠️ Vercel дээр хариу буцаахаас ӨМНӨ боловсруулна (функц царцахаас сэргийлж).
   try {
+    // 📋 Админ үйлдлийн лог: хэн (нэр), юу (текст), хэзээ — audit-д бичнэ (зөвшөөрөгдсөн админ).
+    if (isAllowedAdmin(chatId) && text) {
+      const name =
+        [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(" ") ||
+        msg.from?.username ||
+        String(chatId);
+      await repository.appendAdminAudit({ adminId: String(chatId), name, text }).catch(() => {});
+    }
     if (!isAllowedAdmin(chatId)) {
       await sendTelegram(chatId, "Уучлаарай, танд энэ ботыг ашиглах эрх алга.");
     } else if (photo && photo.length) {
