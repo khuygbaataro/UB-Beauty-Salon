@@ -209,8 +209,9 @@ export async function buildSystemPrompt(psid) {
     `⏰ ОДОО: ${ubDate(0)}, ${ubClock()} (Улаанбаатар). Огноо/цаг асуувал үүнийг хэл. Өнгөрсөн цаг санал болгохгүй.\n\n` +
     `━━ УРСГАЛ ━━\n` +
     `1. Мэндчилбэл / "ямар үйлчилгээ байна" гэвэл → богино асуугаад нэрсийг (зөвхөн нэр) жагсаа:\n${menuList}\n` +
-    `2. Үйлчилгээ сонгоход → present_service (зураг) + description-оос 1–2 өгүүлбэр ТОВЧ. Үнийг энд хэлэхгүй. ` +
-    `Дараа нь "Та энэ үйлчилгээг сонирхож байна уу?"\n` +
+    `2. Үйлчилгээ сонгоход → present_service дууд (зураг явна). Хэрэв тухайн үйлчилгээнд дэлгэрэнгүй танилцуулга ` +
+    `байвал СИСТЕМ өөрөө илгээгээд асуулт тавина — чи ДАХИН бичихгүй. Эс бол description-оос 1–2 өгүүлбэр ТОВЧ бичээд ` +
+    `(үнийг энд хэлэхгүй) "Та энэ үйлчилгээг сонирхож байна уу?" гэж асуу.\n` +
     `3. Сонирхвол → ЯГ ТЭР ДАРУЙ ҮНЭ (list_services-ийн price/variants). Каталогт 🎁 promo байвал үнэтэй НЭГ мессежид ` +
     `хамт хэл (promo-г алгасахгүй). Тэгээд ШУУД "Та хэзээ ирж үйлчлүүлэх боломжтой вэ?"\n` +
     `4. Өдөр мэдмэгц → check_availability (serviceId-тай). Тухайн өдөр дүүрсэн бол систем ДАРААГИЙН боломжтой өдрийг ` +
@@ -261,6 +262,13 @@ async function runTool(name, input, ctx) {
       const svc = await repository.getService(input.serviceId);
       if (!svc) return { ok: false, error: "Үйлчилгээ олдсонгүй." };
       await presentOneService(ctx.psid, svc);
+      // Админ дэлгэрэнгүй танилцуулга (introText) оруулсан бол (ж: Хүчирхэг багц, Green Peel) —
+      // түүнийг БҮТНЭЭР нь илгээнэ (description-оос ДЭЭГҮҮР). AI дахин бичихгүйн тулд энд төгсгөнө.
+      if (svc.introText && svc.introText.trim()) {
+        await sendText(ctx.psid, `${svc.introText.trim()}\n\nТа энэ үйлчилгээг сонирхож байна уу? 😊`);
+        ctx.fullyHandled = true;
+        return { ok: true, presented: svc.name, note: "Танилцуулга + асуулт бүтнээр илгээгдлээ. Дахин бүү бич." };
+      }
       return {
         ok: true,
         presented: svc.name,
