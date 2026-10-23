@@ -652,6 +652,9 @@ async function buildSystemPrompt() {
     `• ХЭРЭГЛЭГЧИЙН БОТЫН ТЕКСТ/ӨНГӨ: Админ "мэндчилгээг ... болго" гэвэл set_bot_text key='greeting', ` +
     `"бот илүү дулаан/өөр өнгөтэй ярь, ✨ emoji хэрэглэ" гэх мэт бол key='tone'-оор хадгал. ` +
     `get_bot_text-ээр одоогийнхыг хар. Өөрчлөлт хэрэглэгчийн ботод шууд тусна.\n` +
+    `• ТОХИРГОО/ЗАСВАР ХАРАХ: Админ "миний тохиргоо/засваруудыг харуул", "одоогийн тохиргоо", "юу тохируулсан ` +
+    `байна" гэвэл get_bot_text-ээр БҮХ идэвхтэй тохиргоог (мэндчилгээ, өнгө аяс, хаяг, утас, handoff, AI загвар) ` +
+    `цэвэрхэн жагсааж үзүүл. Аль нь '(анхны default)' бол засаагүй гэж тайлбарла.\n` +
     `• АЖИЛТАН НЭГДЭХ МЭДЭГДЭЛ: Ажилтан гар аргаар чат авахад хэрэглэгчид "ажилтан нэгдлээ" гэж очдог. ` +
     `Үүнийг БОЛИУЛАХ/унтраах (зүгээр чимээгүй болгох) бол set_bot_text key='handoff_notice', value='off'. ` +
     `Өөр текст болгохыг хүсвэл тэр текстийг value-д өг. Буцааж асаах бол дахин текст тохируул.\n` +
@@ -910,12 +913,22 @@ async function runTool(name, input, ctx = {}) {
       return { ok: true, key: input.key, note: "Хэрэглэгчийн ботод шууд тусна." };
     }
     case "get_bot_text": {
+      // Админ Telegram-аас хийсэн БҮХ засвар/тохиргоог нэг дор харуулна.
       const handoff = await repository.getSetting("handoff_notice");
+      const salonLoc = await repository.getSetting("salon_location");
+      const salonPh = await repository.getSetting("salon_phone");
       return {
         greeting: (await repository.getSetting("greeting")) || "(анхны default)",
-        tone: (await repository.getSetting("tone")) || "(анхны default)",
+        tone: (await repository.getSetting("tone")) || "(анхны default — тусгай заавар алга)",
         handoff_notice:
           handoff == null ? "(анхны default мессеж)" : handoff === "off" ? "(унтраасан — чимээгүй)" : handoff,
+        salon_location: salonLoc || `(env default: ${config.salonLocation})`,
+        salon_phone: salonPh || `(env default: ${config.salonPhone})`,
+        customer_ai_model: config.customerModel,
+        note:
+          "Эдгээр нь одоо идэвхтэй тохиргоо (Telegram-аас засдаг). '(анхны default)' гэвэл засаагүй, " +
+          "кодын анхдагчаар ажиллаж байна. Засвар хийсэн ч customer бот дээр харагдахгүй бол Vercel deploy " +
+          "шинэчлэгдсэн эсэхийг (/status version) шалгуул.",
       };
     }
     case "set_salon_info": {
