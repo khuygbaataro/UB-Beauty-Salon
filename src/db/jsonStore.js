@@ -58,7 +58,12 @@ export function createJsonStore() {
     async updateService(id, patch) {
       const i = services.findIndex((x) => x.id === id);
       if (i === -1) return null;
-      services[i] = { ...services[i], ...patch, id };
+      // redisStore-той ижил: админ зассан контент талбарыг түгжинэ (seed sync дарж бичихгүй).
+      const adminLocked = { ...(services[i].adminLocked || {}) };
+      for (const f of ["introText", "notes", "images"]) {
+        if (Object.prototype.hasOwnProperty.call(patch, f)) adminLocked[f] = true;
+      }
+      services[i] = { ...services[i], ...patch, adminLocked, id };
       return clone(services[i]);
     },
 

@@ -48,11 +48,12 @@ export function createRedisStore() {
     seeded = true;
   }
 
-  // Seed дэх шинэ талбаруудыг (refKeys, images, introText) аль хэдийн суусан
-  // үйлчилгээ рүү зөөх (deploy-safe). ⚠️ ensureSeeded нь зөвхөн ХООСОН үед seed
-  // хийдэг тул дараа нэмсэн/өөрчилсөн эдгээр талбар production-д өөрөө хүрэхгүй.
-  //  • refKeys — seed-ийн шинэ түлхүүрүүдийг НЭГТГЭНЭ (merge; хуучныг устгахгүй).
-  //  • images/introText — админ заддаггүй тул seed-ийн утгыг МӨРДҮҮЛНЭ (overwrite).
+  // Seed дэх контент талбаруудыг (refKeys, images, introText, notes) аль хэдийн суусан
+  // үйлчилгээ рүү deploy болгонд ТОХИРУУЛНА. ⚠️ ensureSeeded нь зөвхөн ХООСОН үед seed
+  // хийдэг тул дараа нэмсэн/өөрчилсөн эдгээр талбар production-д өөрөө хүрэхгүй — энэ sync хүргэнэ.
+  //  • refKeys — seed-ийн түлхүүрүүдийг НЭГТГЭНЭ (union; хуучныг устгахгүй).
+  //  • introText/notes/images — seed-ийн утгыг МӨРДҮҮЛНЭ (deploy болгонд шинэчилнэ),
+  //    ГЭХДЭЭ админ Telegram-аас тухайн талбарыг гараар зассан (adminLocked) бол ХАДГАЛНА.
   async function ensureSeedFieldsSynced() {
     if (seedFieldsSynced) return;
     seedFieldsSynced = true; // давхар ажиллуулахгүй (алдаа гарсан ч нэг л оролдоно)
@@ -60,16 +61,18 @@ export function createRedisStore() {
       for (const s of seedServices) {
         const cur = await redis.hget("svc", s.id);
         if (!cur) continue;
+        const locked = cur.adminLocked || {}; // админ гараар зассан талбарууд
         const patch = {};
         if (s.refKeys?.length) {
           const curKeys = Array.isArray(cur.refKeys) ? cur.refKeys : [];
           const merged = Array.from(new Set([...curKeys, ...s.refKeys]));
           if (merged.length !== curKeys.length) patch.refKeys = merged;
         }
-        // images/introText/notes — зөвхөн БАЙХГҮЙ үед seed-ээс нэмнэ (админ Telegram-аас засвал дарж бичихгүй).
-        if (s.images && !(Array.isArray(cur.images) && cur.images.length)) patch.images = s.images;
-        if (s.introText && !cur.introText) patch.introText = s.introText;
-        if (s.notes && !cur.notes) patch.notes = s.notes;
+        if (s.introText && !locked.introText && cur.introText !== s.introText) patch.introText = s.introText;
+        if (s.notes && !locked.notes && cur.notes !== s.notes) patch.notes = s.notes;
+        if (s.images?.length && !locked.images && JSON.stringify(cur.images || []) !== JSON.stringify(s.images)) {
+          patch.images = s.images;
+        }
         if (Object.keys(patch).length) {
           await redis.hset("svc", { [s.id]: { ...cur, ...patch } });
         }
@@ -120,7 +123,13 @@ export function createRedisStore() {
     async updateService(id, patch) {
       const cur = await redis.hget("svc", id);
       if (!cur) return null;
-      const upd = { ...cur, ...patch, id };
+      // Админ seed-ийн контент талбарыг (introText/notes/images) гараар зассан бол "түгжинэ"
+      // — ингэснээр deploy дээрх seed sync түүнийг дарж бичихгүй (админ засвар давамгайлна).
+      const adminLocked = { ...(cur.adminLocked || {}) };
+      for (const f of ["introText", "notes", "images"]) {
+        if (Object.prototype.hasOwnProperty.call(patch, f)) adminLocked[f] = true;
+      }
+      const upd = { ...cur, ...patch, adminLocked, id };
       await redis.hset("svc", { [id]: upd });
       return upd;
     },

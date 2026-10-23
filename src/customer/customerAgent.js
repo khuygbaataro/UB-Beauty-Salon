@@ -171,7 +171,9 @@ export async function buildSystemPrompt(psid) {
       const price = priceSummary(s).replace(/\n/g, " ");
       // promo (бэлэг/урамшуулал) байвал каталогт оруулна — AI үнэтэй хамт ЗААВАЛ хэлнэ.
       const promo = s.promo ? ` | 🎁 Бэлэг/урамшуулал: ${s.promo}` : "";
-      return `${i + 1}. [${s.id}] ${s.name}: ${s.description} (${price})${promo}`;
+      // notes (админ тусгай заавар) байвал каталогт оруулна — AI үргэлж хараад ДАГАНА.
+      const note = s.notes ? `\n   ↳ ЗААВАР (заавал дага): ${s.notes}` : "";
+      return `${i + 1}. [${s.id}] ${s.name}: ${s.description} (${price})${promo}${note}`;
     })
     .join("\n");
 
