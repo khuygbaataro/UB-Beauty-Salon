@@ -50,6 +50,10 @@ export async function presentOneService(psid, service) {
     for (const url of urls) await sendImage(psid, url);
     return;
   }
+  // Зураггүй мөртлөө дэлгэрэнгүй introText-тэй (ж: Хүчирхэг багц) бол текст карт
+  // (нэр+subtitle) явуулахгүй — introText өөрөө гарчиг/танилцуулгыг агуулдаг тул
+  // картын subtitle-тэй давхцахаас сэргийлнэ. Дараа нь introText илгээгдэнэ.
+  if (service.introText && service.introText.trim()) return;
   await sendServiceCard(psid, service);
 }
 
