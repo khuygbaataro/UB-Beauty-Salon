@@ -263,6 +263,8 @@ async function runTool(name, input, ctx) {
     case "present_service": {
       const svc = await repository.getService(input.serviceId);
       if (!svc) return { ok: false, error: "Үйлчилгээ олдсонгүй." };
+      // Шинэ үйлчилгээ танилцуулж байна = шинэ funnel — "захиалга дууссан" төлөвийг цэвэрлэнэ.
+      await repository.clearBooked(ctx.psid).catch(() => {});
       await presentOneService(ctx.psid, svc);
       // Админ дэлгэрэнгүй танилцуулга (introText) оруулсан бол (ж: Хүчирхэг багц, Green Peel) —
       // түүнийг БҮТНЭЭР нь илгээнэ (description-оос ДЭЭГҮҮР). AI дахин бичихгүйн тулд энд төгсгөнө.
@@ -364,6 +366,10 @@ async function runTool(name, input, ctx) {
       } else {
         await sendText(ctx.psid, "Удахгүй уулзацгаая 😊");
       }
+
+      // Захиалга дууссан "хаалтын төлөв" — энэ үед 👍 like-ийг "Тийм, багцаа дахин үзүүл"
+      // гэж бус, зүгээр талархал гэж үзнэ (дахин зарахаас сэргийлнэ). 6 цагийн дараа арилна.
+      await repository.setBooked(ctx.psid, 6 * 60 * 60).catch(() => {});
 
       // Бот бүгдийг илгээчихсэн тул AI дахин хариу бичихгүй.
       ctx.fullyHandled = true;

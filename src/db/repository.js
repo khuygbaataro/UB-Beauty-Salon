@@ -125,6 +125,11 @@ export const repository = {
   setPaused: (psid, seconds) => getStore().setPaused(psid, seconds),
   clearPaused: (psid) => getStore().clearPaused(psid),
 
+  // Захиалга дөнгөж дууссан (хаалтын төлөв)
+  getBooked: (psid) => getStore().getBooked(psid),
+  setBooked: (psid, seconds) => getStore().setBooked(psid, seconds),
+  clearBooked: (psid) => getStore().clearBooked(psid),
+
   // Админ үйлдлийн лог (audit)
   appendAdminAudit: (entry) => getStore().appendAdminAudit(entry),
   listAdminAudit: (limit) => getStore().listAdminAudit(limit),

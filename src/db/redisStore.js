@@ -344,6 +344,19 @@ export function createRedisStore() {
       if (psid) await redis.del(`pause:${psid}`);
     },
 
+    // ───────── Захиалга дөнгөж дууссан (хаалтын төлөв) — TTL-тэй ─────────
+    // Энэ төлөвт 👍 like / sticker-ийг "Тийм, багцаа дахин үзүүл" гэж бус,
+    // зүгээр талархал гэж үзнэ (захиалга хийгдсэний дараа дахин зарахгүй).
+    async getBooked(psid) {
+      return Boolean(await redis.get(`booked:${psid}`));
+    },
+    async setBooked(psid, seconds) {
+      if (psid) await redis.set(`booked:${psid}`, "1", { ex: Math.max(1, Math.floor(seconds)) });
+    },
+    async clearBooked(psid) {
+      if (psid) await redis.del(`booked:${psid}`);
+    },
+
     // ───────── Customer чатуудыг татах (дүн шинжилгээнд) ─────────
     // conv:<psid> (customer) түлхүүрүүдийг scan-даж, сүүлийн limit-ийг буцаана.
     // conv:admin:* / conv:artist:* -ийг алгасна.

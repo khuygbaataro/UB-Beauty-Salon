@@ -33,7 +33,7 @@ import { privacyPageHtml } from "./legal/privacyPage.js";
 
 warnMissingConfig();
 
-const VERSION = "2026-10-23-9"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
+const VERSION = "2026-10-29-1"; // deploy-ийг ялгах тэмдэг (/ эсвэл /status дээр харагдана)
 
 export const app = express();
 app.use(express.json());
@@ -138,6 +138,12 @@ async function handleMessagingEvent(event) {
       Boolean(event.message.sticker_id) ||
       (event.message.attachments || []).some((a) => a?.payload?.sticker_id);
     if (isSticker) {
+      // Захиалга дөнгөж дууссан (хаалтын төлөв) бол 👍-г "Тийм, багцаа дахин үзүүл"
+      // гэж БҮҮ ойлго — зүгээр талархлаар хариулж, дахин зарахгүй.
+      if (await repository.getBooked(psid)) {
+        await sendText(psid, "Баярлалаа! 😊 Удахгүй уулзацгаая.");
+        return;
+      }
       const reply = await handleCustomerMessage({ psid, text: "Тийм 👍" });
       if (reply && reply.trim()) await sendText(psid, reply);
       return;
@@ -246,6 +252,9 @@ async function handleMessagingEvent(event) {
  */
 async function presentServiceDirect(psid, service, greet = false) {
   await setReferredService(psid, service.id);
+  // Шинэ үйлчилгээ танилцуулж байна = шинэ funnel эхэллээ — "захиалга дууссан" хаалтын
+  // төлөвийг цэвэрлэнэ (ингэснээр энэ funnel дахь 👍 зөв "Тийм" болж ажиллана).
+  await repository.clearBooked(psid).catch(() => {});
   await presentOneService(psid, service);
   // greet=true зөвхөн АНХНЫ холбоонд (ад/анхны мессеж) — яриа дундуур "Сайн байна уу?" гэж мэндлэхгүй.
   await sendText(psid, buildGreeting(service, greet));

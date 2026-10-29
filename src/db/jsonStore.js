@@ -30,6 +30,7 @@ export function createJsonStore() {
   const conversations = new Map(); // psid -> messages[]
   const referred = new Map(); // psid -> serviceId
   const pausedUntil = new Map(); // psid -> expiryMs (хүн гар аргаар авсан үед бот зогсоно)
+  const bookedUntil = new Map(); // psid -> expiryMs (захиалга дөнгөж дууссан хаалтын төлөв)
   const adminAudit = []; // админ үйлдлийн лог (хэн юу бичсэн) — хамгийн сүүлийнх нь эхэнд
   const settings = new Map(); // ботын тохиргоо (greeting, tone г.м.)
 
@@ -302,6 +303,23 @@ export function createJsonStore() {
     },
     async clearPaused(psid) {
       if (psid) pausedUntil.delete(psid);
+    },
+
+    // ───────── Захиалга дөнгөж дууссан (хаалтын төлөв) — хугацаатай ─────────
+    async getBooked(psid) {
+      const exp = bookedUntil.get(psid);
+      if (!exp) return false;
+      if (Date.now() > exp) {
+        bookedUntil.delete(psid);
+        return false;
+      }
+      return true;
+    },
+    async setBooked(psid, seconds) {
+      if (psid) bookedUntil.set(psid, Date.now() + Math.max(1, seconds) * 1000);
+    },
+    async clearBooked(psid) {
+      if (psid) bookedUntil.delete(psid);
     },
 
     // ───────── Customer чатуудыг татах (дүн шинжилгээнд) ─────────
